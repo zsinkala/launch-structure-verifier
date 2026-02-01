@@ -1,0 +1,40 @@
+[package]
+name = "launch-structure-verifier"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "launch-structure-verifier-server"
+path = "src/main.rs"
+
+[dependencies]
+# Candid for ICP type serialization
+candid = "0.10"
+
+# Serde for JSON serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Async support
+async-trait = "0.1"
+
+# IC CDK for canister development (we'll use this later)
+ic-cdk = "0.12"
+ic-cdk-macros = "0.8"
+
+# HTTP client for provider implementations
+reqwest = { version = "0.11", features = ["json"] }
+
+# Tokio for async runtime
+tokio = { version = "1", features = ["full"] }
+
+# HTTP server for API endpoint
+axum = "0.7"
+tower-http = { version = "0.5", features = ["cors"] }
+tower = "0.4"
+
+[dev-dependencies]
+# For testing (already have tokio in dependencies now)
