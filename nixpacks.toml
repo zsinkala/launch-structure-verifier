@@ -1,0 +1,8 @@
+[phases.setup]
+nixPkgs = ['rust', 'cargo']
+
+[phases.build]
+cmds = ['cargo build --release --bin launch-structure-verifier-server']
+
+[start]
+cmd = './target/release/launch-structure-verifier-server'
