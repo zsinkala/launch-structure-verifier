@@ -9,7 +9,11 @@ async fn main() {
     let alchemy_api_key = env::var("ALCHEMY_API_KEY")
         .expect("ALCHEMY_API_KEY environment variable must be set");
 
-    let port = 3000;
+    // Read PORT from environment (Render provides this)
+    let port = env::var("PORT")
+        .unwrap_or_else(|_| "3000".to_string())
+        .parse::<u16>()
+        .expect("PORT must be a valid number");
     
     run_server(port, helius_api_key, alchemy_api_key).await;
 }

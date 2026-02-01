@@ -63,7 +63,8 @@ pub async fn run_server(port: u16, helius_api_key: String, alchemy_api_key: Stri
         .layer(cors)
         .with_state(state);
 
-    let addr = format!("127.0.0.1:{}", port);
+    // CRITICAL FIX: Bind to 0.0.0.0 instead of 127.0.0.1 for external access
+    let addr = format!("0.0.0.0:{}", port);
     println!("🚀 Server running on http://{}", addr);
     println!("📊 Ready to analyze tokens on Solana and Base!");
 
