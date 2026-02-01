@@ -24,12 +24,15 @@
     <script type="text/babel">
         const { useState } = React;
 
+        // PRODUCTION API URL
+        const API_URL = 'https://launch-structure-verifier.onrender.com/api/v1/analyze';
+
         async function analyzeToken(chain, address, forceRefresh = false) {
             const cleanAddress = address.trim();
             
             console.log('Analyzing:', chain, cleanAddress, 'Force refresh:', forceRefresh);
             
-            const response = await fetch('http://localhost:3000/api/v1/analyze', {
+            const response = await fetch(API_URL, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -74,7 +77,7 @@
                     const data = await analyzeToken(chain, address, forceRefresh);
                     setResult(data);
                 } catch (err) {
-                    setError(err.message || "Failed to analyze token. Make sure the backend server is running.");
+                    setError(err.message || "Failed to analyze token. Please try again.");
                     console.error('Error:', err);
                 } finally {
                     setLoading(false);
@@ -110,7 +113,7 @@
                         <h1 className="text-3xl font-normal mb-2">Launch Structure Verifier</h1>
                         <p className="text-gray-600">Structural analysis only. No price, no prediction.</p>
                         <p className="text-xs text-gray-500 mt-2">
-                            🔴 Backend: <span id="backend-status">Checking...</span>
+                            Multi-chain trust infrastructure • Analyze tokens on Solana and Base
                         </p>
                     </header>
 
@@ -248,16 +251,6 @@
                 </div>
             );
         }
-
-        fetch('http://localhost:3000/api/v1/analyze', {method: 'OPTIONS'})
-            .then(() => {
-                document.getElementById('backend-status').textContent = 'Connected';
-                document.getElementById('backend-status').style.color = 'green';
-            })
-            .catch(() => {
-                document.getElementById('backend-status').textContent = 'Not running';
-                document.getElementById('backend-status').style.color = 'red';
-            });
 
         ReactDOM.render(<App />, document.getElementById('root'));
     </script>
