@@ -20,8 +20,12 @@ pub fn check_ownership_renounced(facts: &TokenFacts) -> CheckResult {
     };
 
     let owner = &authorities.owner;
+    let is_renounced = owner
+        .as_deref()
+        .map(is_renounced_owner)
+        .unwrap_or(true);
     
-    let (status, score) = if owner.is_none() {
+    let (status, score) = if is_renounced {
         (CheckStatus::Pass, Some(100))
     } else {
         (CheckStatus::Fail, Some(0))
@@ -41,9 +45,17 @@ pub fn check_ownership_renounced(facts: &TokenFacts) -> CheckResult {
         weight: 20,
         evidence: json!({
             "owner": owner,
-            "is_renounced": owner.is_none(),
+            "is_renounced": is_renounced,
         }),
     }
+}
+
+fn is_renounced_owner(owner: &str) -> bool {
+    matches!(
+        owner.to_ascii_lowercase().as_str(),
+        "0x0000000000000000000000000000000000000000"
+            | "0x000000000000000000000000000000000000dead"
+    )
 }
 
 #[cfg(test)]
@@ -87,6 +99,26 @@ mod tests {
 
         let result = check_ownership_renounced(&facts);
         assert_eq!(result.status, CheckStatus::Pass);
+    }
+
+    #[test]
+    fn test_ownership_renounced_explicit_zero_address() {
+        let facts = TokenFacts {
+            metadata: None,
+            supply: None,
+            authorities: Some(AuthorityInfo {
+                mint_authority: None,
+                freeze_authority: None,
+                owner: Some("0x0000000000000000000000000000000000000000".to_string()),
+                mint_mutable: Some(false),
+            }),
+            holders: None,
+            creation: None,
+        };
+
+        let result = check_ownership_renounced(&facts);
+        assert_eq!(result.status, CheckStatus::Pass);
+        assert_eq!(result.score_component, Some(100));
     }
 
     #[test]

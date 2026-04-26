@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: launch-structure-verifier
+    runtime: rust
+    plan: free
+    buildCommand: cargo build --release --bin launch-structure-verifier-server
+    startCommand: ./target/release/launch-structure-verifier-server
+    healthCheckPath: /health
+    envVars:
+      - key: HELIUS_API_KEY
+        sync: false
+      - key: ALCHEMY_API_KEY
+        sync: false
+      - key: FRONTEND_ORIGIN
+        value: https://zsinkala.github.io

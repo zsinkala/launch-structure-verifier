@@ -86,14 +86,14 @@ pub struct CheckResult {
     pub score_component: Option<u8>,
 }
 
-#[derive(Clone, Debug, CandidType, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, CandidType, Serialize, Deserialize)]
 pub enum CheckStatus {
     Pass,
     Fail,
     Unknown,
 }
 
-#[derive(Clone, Debug, CandidType, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, CandidType, Serialize, Deserialize)]
 pub enum Severity {
     Critical,
     High,

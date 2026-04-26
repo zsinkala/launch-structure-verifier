@@ -3,7 +3,10 @@ use crate::providers::TokenProvider;
 use crate::checks::*;
 use crate::scoring::aggregate_score;
 use super::types::*;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
+
+static ANALYSIS_ID_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 /// Main API handler: orchestrates provider calls, checks, and scoring
 pub async fn analyze<P: TokenProvider>(
@@ -210,12 +213,12 @@ fn generate_explanation(checks: &[CheckResult], score: &crate::scoring::ScoreRes
 }
 
 fn generate_analysis_id() -> String {
-    // Simple ID generation - in production use UUID
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_millis();
-    format!("analysis_{}", now)
+    let sequence = ANALYSIS_ID_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+    format!("analysis_{}_{}", now, sequence)
 }
 
 fn current_timestamp() -> String {

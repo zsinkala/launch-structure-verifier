@@ -14,6 +14,8 @@ async fn main() {
         .unwrap_or_else(|_| "3000".to_string())
         .parse::<u16>()
         .expect("PORT must be a valid number");
+
+    let frontend_origin = env::var("FRONTEND_ORIGIN").ok();
     
-    run_server(port, helius_api_key, alchemy_api_key).await;
+    run_server(port, helius_api_key, alchemy_api_key, frontend_origin).await;
 }
