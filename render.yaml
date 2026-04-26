@@ -13,3 +13,7 @@ services:
         sync: false
       - key: FRONTEND_ORIGIN
         value: https://zsinkala.github.io
+      - key: PAYMENT_WALLET_ADDRESS
+        value: 0x6aeaEC86d147e5A13cB7bD50CF2200C85656D6d9
+      - key: PAID_REPORT_PRICE_USDC
+        value: "5"

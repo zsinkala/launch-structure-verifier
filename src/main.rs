@@ -1,3 +1,4 @@
+use launch_structure_verifier::api::payments::parse_usdc_amount_to_microusd;
 use launch_structure_verifier::server::run_server;
 use std::env;
 
@@ -16,6 +17,19 @@ async fn main() {
         .expect("PORT must be a valid number");
 
     let frontend_origin = env::var("FRONTEND_ORIGIN").ok();
+    let payment_wallet_address = env::var("PAYMENT_WALLET_ADDRESS").ok();
+    let paid_report_price_usdc =
+        env::var("PAID_REPORT_PRICE_USDC").unwrap_or_else(|_| "5".to_string());
+    let paid_report_price_microusd = parse_usdc_amount_to_microusd(&paid_report_price_usdc)
+        .expect("PAID_REPORT_PRICE_USDC must be a positive USDC amount");
     
-    run_server(port, helius_api_key, alchemy_api_key, frontend_origin).await;
+    run_server(
+        port,
+        helius_api_key,
+        alchemy_api_key,
+        frontend_origin,
+        payment_wallet_address,
+        paid_report_price_microusd,
+    )
+    .await;
 }

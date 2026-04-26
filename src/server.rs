@@ -5,7 +5,7 @@ use axum::{
     Json, Router,
 };
 use tower_http::cors::{CorsLayer, Any};
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -13,6 +13,10 @@ use tokio::sync::Mutex;
 
 use crate::api::types::{AnalyzeRequest, AnalyzeResponse};
 use crate::api::cached_analyze::analyze_with_cache;
+use crate::api::payments::{
+    verify_base_usdc_payment, PaymentVerificationError, VerifyPaymentRequest,
+    VerifyPaymentResponse,
+};
 use crate::providers::helius::HeliusProvider;
 use crate::providers::alchemy::AlchemyProvider;
 use crate::cache::SimpleCache;
@@ -20,8 +24,11 @@ use crate::cache::SimpleCache;
 pub struct AppState {
     pub cache: Mutex<SimpleCache>,
     pub rate_limiter: Mutex<RateLimiter>,
+    pub used_payment_txs: Mutex<HashSet<String>>,
     pub helius_api_key: String,
     pub alchemy_api_key: String,
+    pub payment_wallet_address: Option<String>,
+    pub paid_report_price_microusd: u64,
 }
 
 pub async fn analyze_handler(
@@ -63,6 +70,65 @@ pub async fn analyze_handler(
     Ok(Json(response))
 }
 
+pub async fn verify_payment_handler(
+    State(state): State<Arc<AppState>>,
+    ConnectInfo(remote_addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    Json(request): Json<VerifyPaymentRequest>,
+) -> Result<Json<VerifyPaymentResponse>, StatusCode> {
+    let client_id = client_id_from_headers(&headers, remote_addr);
+    let mut rate_limiter = state.rate_limiter.lock().await;
+    if !rate_limiter.allow_request(&client_id) {
+        return Err(StatusCode::TOO_MANY_REQUESTS);
+    }
+    drop(rate_limiter);
+
+    if !is_valid_evm_address(&request.tx_hash, 66) || request.token_address.trim().is_empty() {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let Some(payment_wallet_address) = &state.payment_wallet_address else {
+        return Err(StatusCode::SERVICE_UNAVAILABLE);
+    };
+
+    let normalized_tx_hash = request.tx_hash.to_ascii_lowercase();
+    {
+        let used_payment_txs = state.used_payment_txs.lock().await;
+        if used_payment_txs.contains(&normalized_tx_hash) {
+            return Ok(Json(VerifyPaymentResponse {
+                valid: false,
+                report_access_id: None,
+                message: "This transaction hash has already been used.".to_string(),
+                amount_usdc: None,
+            }));
+        }
+    }
+
+    let response = verify_base_usdc_payment(
+        &state.alchemy_api_key,
+        payment_wallet_address,
+        state.paid_report_price_microusd,
+        &request,
+    )
+    .await
+    .map_err(|error| match error {
+        PaymentVerificationError::InvalidInput => StatusCode::BAD_REQUEST,
+        PaymentVerificationError::TransactionNotFound => StatusCode::NOT_FOUND,
+        PaymentVerificationError::NetworkError(message) => {
+            eprintln!("Payment verification network error: {}", message);
+            StatusCode::BAD_GATEWAY
+        }
+        PaymentVerificationError::InvalidResponse => StatusCode::BAD_GATEWAY,
+    })?;
+
+    if response.valid {
+        let mut used_payment_txs = state.used_payment_txs.lock().await;
+        used_payment_txs.insert(normalized_tx_hash);
+    }
+
+    Ok(Json(response))
+}
+
 async fn health_handler() -> &'static str {
     "ok"
 }
@@ -72,12 +138,17 @@ pub async fn run_server(
     helius_api_key: String,
     alchemy_api_key: String,
     frontend_origin: Option<String>,
+    payment_wallet_address: Option<String>,
+    paid_report_price_microusd: u64,
 ) {
     let state = Arc::new(AppState {
         cache: Mutex::new(SimpleCache::new()),
         rate_limiter: Mutex::new(RateLimiter::new(60, 60)),
+        used_payment_txs: Mutex::new(HashSet::new()),
         helius_api_key,
         alchemy_api_key,
+        payment_wallet_address,
+        paid_report_price_microusd,
     });
 
     let cors = match frontend_origin {
@@ -98,6 +169,7 @@ pub async fn run_server(
     let app = Router::new()
         .route("/health", get(health_handler))
         .route("/api/v1/analyze", post(analyze_handler))
+        .route("/api/v1/payments/verify", post(verify_payment_handler))
         .layer(cors)
         .with_state(state);
 
@@ -168,7 +240,7 @@ fn is_valid_request_address(chain: &str, address: &str) -> bool {
 
     match chain {
         "solana" => is_valid_solana_address(address),
-        "base" | "ethereum" | "evm" => is_valid_evm_address(address),
+        "base" | "ethereum" | "evm" => is_valid_evm_address(address, 42),
         _ => false,
     }
 }
@@ -181,8 +253,8 @@ fn is_valid_solana_address(address: &str) -> bool {
             .all(|byte| matches!(byte, b'1'..=b'9' | b'A'..=b'H' | b'J'..=b'N' | b'P'..=b'Z' | b'a'..=b'k' | b'm'..=b'z'))
 }
 
-fn is_valid_evm_address(address: &str) -> bool {
-    address.len() == 42
+fn is_valid_evm_address(address: &str, len: usize) -> bool {
+    address.len() == len
         && address.starts_with("0x")
         && address[2..].bytes().all(|byte| byte.is_ascii_hexdigit())
 }
