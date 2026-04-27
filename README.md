@@ -10,6 +10,37 @@ The project currently supports:
 - In-memory response caching
 - Unit and integration tests for checks, scoring, caching, and API flow
 
+## Continuation Notes
+
+Last known good state:
+
+- Frontend is live at `https://zsinkala.github.io/launch-structure-verifier/`.
+- Backend is live at `https://launch-structure-verifier.onrender.com`.
+- Health check is `https://launch-structure-verifier.onrender.com/health`.
+- Render deployed commit `4de79b1`: `Persist payment verifications in Supabase`.
+- GitHub Pages deployed commit `d50e632`: `Deploy paid report frontend`.
+- Paid Report UI is visible after running an analysis.
+- Supabase table `used_payment_txs` exists.
+- Render has `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` set.
+- Payment wallet is `0x6aeaEC86d147e5A13cB7bD50CF2200C85656D6d9`.
+- Paid report price is `5 USDC` on Base.
+
+Tomorrow checklist:
+
+1. Run one free analysis on the GitHub Pages frontend.
+2. Send a small real test payment of `5 USDC` on Base to the payment wallet, or lower `PAID_REPORT_PRICE_USDC` temporarily for testing.
+3. Paste the Base transaction hash into the Paid Report box and verify it.
+4. Confirm a new row appears in Supabase table `used_payment_txs`.
+5. Paste the same transaction hash again and confirm it is rejected as already used.
+6. Improve the paid report content from raw JSON into a cleaner user-facing report.
+
+Important warnings:
+
+- Do not put `SUPABASE_SERVICE_ROLE_KEY` in any frontend file.
+- The paid report flow is manual transaction-hash verification, not wallet connect checkout.
+- Base USDC only. The official Base USDC contract used by the backend is `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`.
+- The tool sells structural risk clarity, not investment advice or price prediction.
+
 ## What It Checks
 
 For Solana tokens:
