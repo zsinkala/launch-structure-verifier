@@ -69,6 +69,8 @@ export PORT=3000
 export FRONTEND_ORIGIN="https://your-frontend-domain.example"
 export PAYMENT_WALLET_ADDRESS="0x6aeaEC86d147e5A13cB7bD50CF2200C85656D6d9"
 export PAID_REPORT_PRICE_USDC=5
+export SUPABASE_URL="https://your-project-ref.supabase.co"
+export SUPABASE_SERVICE_ROLE_KEY="your-backend-secret-key"
 ```
 
 If `PORT` is not set, the server uses `3000`.
@@ -76,6 +78,8 @@ If `PORT` is not set, the server uses `3000`.
 If `FRONTEND_ORIGIN` is set, browser CORS requests are restricted to that origin. If it is not set, the server allows requests from any origin, which is convenient for local testing but too open for production.
 
 `PAYMENT_WALLET_ADDRESS` is the dedicated wallet that receives paid report payments. `PAID_REPORT_PRICE_USDC` defaults to `5` and is measured in Base USDC.
+
+`SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` enable persistent paid-report transaction storage. Keep the service role key only on the backend.
 
 ## Run Locally
 
@@ -192,7 +196,19 @@ Successful response:
 }
 ```
 
-This first version stores used transaction hashes in memory. For real paid usage, move used transaction hashes and report access records into a persistent database such as Supabase, Neon, Render Postgres, or Turso.
+Used transaction hashes and report access records are stored in Supabase when `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are configured. If those variables are missing, the server falls back to in-memory storage for local development.
+
+Supabase table:
+
+```sql
+create table if not exists used_payment_txs (
+  tx_hash text primary key,
+  report_access_id text not null,
+  token_address text not null,
+  amount_usdc text,
+  created_at timestamptz not null default now()
+);
+```
 
 ## Response Shape
 
@@ -279,6 +295,8 @@ For Render or similar platforms, make sure these environment variables are set:
 - `FRONTEND_ORIGIN`
 - `PAYMENT_WALLET_ADDRESS`
 - `PAID_REPORT_PRICE_USDC`
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
 
 The server binds to `0.0.0.0`, which is required for external hosting.
 
@@ -336,7 +354,7 @@ The API has a simple process-local rate limit of 60 analyze requests per client 
 - Timestamps are simple strings and should eventually use a proper datetime library.
 - Cache is in-memory only.
 - Rate limiting is in-memory only, so it resets when the process restarts and is not shared across multiple instances.
-- Payment transaction replay protection is in-memory only in the first version, so use a database before taking meaningful payments.
+- Payment transaction replay protection is persistent when Supabase env vars are configured.
 - There is no `dfx.json` or canister deployment config in this repository right now, even though `candid` and `ic-cdk` dependencies are present.
 
 ## Useful Maintenance Notes

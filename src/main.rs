@@ -1,4 +1,5 @@
 use launch_structure_verifier::api::payments::parse_usdc_amount_to_microusd;
+use launch_structure_verifier::payments_store::SupabasePaymentStore;
 use launch_structure_verifier::server::run_server;
 use std::env;
 
@@ -22,6 +23,13 @@ async fn main() {
         env::var("PAID_REPORT_PRICE_USDC").unwrap_or_else(|_| "5".to_string());
     let paid_report_price_microusd = parse_usdc_amount_to_microusd(&paid_report_price_usdc)
         .expect("PAID_REPORT_PRICE_USDC must be a positive USDC amount");
+    let payment_store = match (
+        env::var("SUPABASE_URL").ok(),
+        env::var("SUPABASE_SERVICE_ROLE_KEY").ok(),
+    ) {
+        (Some(url), Some(service_role_key)) => Some(SupabasePaymentStore::new(url, service_role_key)),
+        _ => None,
+    };
     
     run_server(
         port,
@@ -30,6 +38,7 @@ async fn main() {
         frontend_origin,
         payment_wallet_address,
         paid_report_price_microusd,
+        payment_store,
     )
     .await;
 }

@@ -7,6 +7,7 @@ pub mod scoring;
 pub mod api;
 pub mod cache;
 pub mod server;
+pub mod payments_store;
 
 // Re-export commonly used types
 pub use types::*;

@@ -20,6 +20,7 @@ use crate::api::payments::{
 use crate::providers::helius::HeliusProvider;
 use crate::providers::alchemy::AlchemyProvider;
 use crate::cache::SimpleCache;
+use crate::payments_store::{SupabasePaymentStore, UsedPaymentTxRecord};
 
 pub struct AppState {
     pub cache: Mutex<SimpleCache>,
@@ -29,6 +30,7 @@ pub struct AppState {
     pub alchemy_api_key: String,
     pub payment_wallet_address: Option<String>,
     pub paid_report_price_microusd: u64,
+    pub payment_store: Option<SupabasePaymentStore>,
 }
 
 pub async fn analyze_handler(
@@ -92,16 +94,13 @@ pub async fn verify_payment_handler(
     };
 
     let normalized_tx_hash = request.tx_hash.to_ascii_lowercase();
-    {
-        let used_payment_txs = state.used_payment_txs.lock().await;
-        if used_payment_txs.contains(&normalized_tx_hash) {
-            return Ok(Json(VerifyPaymentResponse {
-                valid: false,
-                report_access_id: None,
-                message: "This transaction hash has already been used.".to_string(),
-                amount_usdc: None,
-            }));
-        }
+    if payment_tx_was_used(&state, &normalized_tx_hash).await? {
+        return Ok(Json(VerifyPaymentResponse {
+            valid: false,
+            report_access_id: None,
+            message: "This transaction hash has already been used.".to_string(),
+            amount_usdc: None,
+        }));
     }
 
     let response = verify_base_usdc_payment(
@@ -122,8 +121,16 @@ pub async fn verify_payment_handler(
     })?;
 
     if response.valid {
-        let mut used_payment_txs = state.used_payment_txs.lock().await;
-        used_payment_txs.insert(normalized_tx_hash);
+        store_used_payment_tx(
+            &state,
+            UsedPaymentTxRecord {
+                tx_hash: normalized_tx_hash,
+                report_access_id: response.report_access_id.clone().unwrap_or_default(),
+                token_address: request.token_address.clone(),
+                amount_usdc: response.amount_usdc.clone(),
+            },
+        )
+        .await?;
     }
 
     Ok(Json(response))
@@ -140,6 +147,7 @@ pub async fn run_server(
     frontend_origin: Option<String>,
     payment_wallet_address: Option<String>,
     paid_report_price_microusd: u64,
+    payment_store: Option<SupabasePaymentStore>,
 ) {
     let state = Arc::new(AppState {
         cache: Mutex::new(SimpleCache::new()),
@@ -149,6 +157,7 @@ pub async fn run_server(
         alchemy_api_key,
         payment_wallet_address,
         paid_report_price_microusd,
+        payment_store,
     });
 
     let cors = match frontend_origin {
@@ -185,6 +194,40 @@ pub async fn run_server(
     axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>())
         .await
         .unwrap();
+}
+
+async fn payment_tx_was_used(
+    state: &AppState,
+    normalized_tx_hash: &str,
+) -> Result<bool, StatusCode> {
+    if let Some(payment_store) = &state.payment_store {
+        return payment_store
+            .has_used_tx(normalized_tx_hash)
+            .await
+            .map_err(|error| {
+                eprintln!("Payment store lookup error: {:?}", error);
+                StatusCode::BAD_GATEWAY
+            });
+    }
+
+    let used_payment_txs = state.used_payment_txs.lock().await;
+    Ok(used_payment_txs.contains(normalized_tx_hash))
+}
+
+async fn store_used_payment_tx(
+    state: &AppState,
+    record: UsedPaymentTxRecord,
+) -> Result<(), StatusCode> {
+    if let Some(payment_store) = &state.payment_store {
+        return payment_store.store_used_tx(record).await.map_err(|error| {
+            eprintln!("Payment store insert error: {:?}", error);
+            StatusCode::BAD_GATEWAY
+        });
+    }
+
+    let mut used_payment_txs = state.used_payment_txs.lock().await;
+    used_payment_txs.insert(record.tx_hash);
+    Ok(())
 }
 
 pub struct RateLimiter {
