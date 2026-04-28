@@ -17,10 +17,12 @@ Last known good state:
 - Frontend is live at `https://zsinkala.github.io/launch-structure-verifier/`.
 - Backend is live at `https://launch-structure-verifier.onrender.com`.
 - Health check is `https://launch-structure-verifier.onrender.com/health`.
-- Render deployed commit `4de79b1`: `Persist payment verifications in Supabase`.
-- GitHub Pages deployed commit `d50e632`: `Deploy paid report frontend`.
-- Local frontend changes after `d50e632`: Paid Report now renders a cleaner structured report instead of raw score/evidence JSON.
-- Paid Report UI is visible after running an analysis.
+- Render/main deployed commit `cb1c0e0`: `Add paid report export actions`.
+- GitHub Pages deployed commit `77f29e8`: `Deploy paid report export actions`.
+- Paid Report UI is visible after running an analysis and unlocks after a valid Base USDC payment.
+- Paid report now renders a cleaner structured report instead of raw score/evidence JSON.
+- Paid report has `Copy ID` and `Download JSON` actions after unlock.
+- Solana token metadata was improved with Helius `getAsset`; BONK now shows as `Bonk` instead of `Unknown`.
 - Supabase table `used_payment_txs` exists.
 - Render has `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` set.
 - Payment wallet is `0x6aeaEC86d147e5A13cB7bD50CF2200C85656D6d9`.
@@ -43,27 +45,29 @@ Last known good state:
     created_at timestamptz not null default now()
   );
   ```
-- After later Render redeploy, logs showed `Port scan timeout reached, no open ports detected`; next session should inspect startup logs just above that message for the real panic/missing env var.
-- Local verification on April 28, 2026:
-  - `cargo test` passed: 41 active tests, 7 ignored live-provider tests.
-  - With dummy API keys and `PORT=3999`, the server started locally and `/health` returned `200 OK`.
-  - A live request to `https://launch-structure-verifier.onrender.com/health` timed out, so the public backend still appears unreachable from this environment.
-  - Repo-side Render config already uses `type: web`, `cargo build --release --bin launch-structure-verifier-server`, and `./target/release/launch-structure-verifier-server`.
+- Earlier Render startup trouble (`Port scan timeout reached`) was resolved; server now binds to `0.0.0.0:<PORT>` and `/health` returns `ok`.
+- Repo-side Render config uses `type: web`, `cargo build --release --bin launch-structure-verifier-server`, and `./target/release/launch-structure-verifier-server`.
 - Payment verification was fixed after replacing the wrong Render `SUPABASE_SERVICE_ROLE_KEY` with the correct service-role key.
 - RLS is now enabled on `public.used_payment_txs`; the Supabase advisor warning is gone.
 - Live payment verification results on April 28, 2026:
   - Fake tx `0x0000000000000000000000000000000000000000000000000000000000000001` returned `404`, confirming Supabase auth passed and Alchemy returned transaction-not-found.
   - Real tx `0xedff7307b21ca982d42a46a200368a2c372c2810104568dc5da48289dd4ab325` returned `200` with `valid: true` and `amount_usdc: "5"`.
   - Reusing the same real tx returned `valid: false` with `This transaction hash has already been used.`
-  - Live frontend shows the already-used message correctly; local frontend was then cleaned up to avoid showing the same invalid-payment message twice.
+  - Live frontend shows the already-used message correctly and no longer duplicates that message.
+  - A new real Base USDC payment was used successfully to unlock a BONK paid report.
+  - The paid BONK report showed `Token: Bonk`, `Chain: Solana`, `Score: 100/100`, `Status: Ok`, and grade `Strong`.
+- Final local test run after Solana metadata improvement: `cargo test` passed with 44 active tests and 7 ignored live-provider tests.
+- Workspace was clean on `main` after the last deployment.
 
 Tomorrow checklist:
 
-1. Commit and push the local backend/frontend/README fixes.
-2. Let Render redeploy from `main`, then confirm `/health` returns `ok`.
-3. Let GitHub Pages update, then confirm the live frontend no longer shows duplicate already-used payment messages.
-4. Run one fresh analysis on the live frontend.
-5. Test a BaseScan transaction URL in the paid-report input using an already-used tx and confirm the raw hash extraction still produces the already-used message.
+1. Add a top-of-report `Buyer Verdict` section, such as `Low structural risk`, `Mixed structural risk`, or `High structural risk`, with short plain-language reasoning.
+2. Improve holder concentration data for Solana and Base so fewer reports show `Unknown` for holder checks.
+3. Improve token age / first-seen detection so fewer reports show `Unknown` for token age.
+4. Add a small payment UX note explaining what counts as a valid payment: Base network, official Base USDC, exact payment wallet, minimum `5 USDC`.
+5. Add a printable or HTML/PDF-style report export in addition to the current JSON export.
+6. Add an admin-friendly payment verification status/logging view or endpoint without exposing secrets.
+7. Before new paid tests, remember each valid Base USDC payment tx can only unlock one report because it is persisted in Supabase.
 
 Important warnings:
 
