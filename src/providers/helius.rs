@@ -1,21 +1,17 @@
 use async_trait::async_trait;
 use crate::types::*;
 use super::{TokenProvider, ProviderError};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::json;
 
 pub struct HeliusProvider {
-    api_key: String,
     rpc_url: String,
 }
 
 impl HeliusProvider {
     pub fn new(api_key: String) -> Self {
         let rpc_url = format!("https://mainnet.helius-rpc.com/?api-key={}", api_key);
-        Self {
-            api_key,
-            rpc_url,
-        }
+        Self { rpc_url }
     }
 
     async fn rpc_call<T: for<'de> Deserialize<'de>>(
@@ -106,6 +102,29 @@ struct MintInfo {
     freeze_authority: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+struct AssetResponse {
+    content: Option<AssetContent>,
+    #[serde(rename = "token_info")]
+    token_info: Option<AssetTokenInfo>,
+}
+
+#[derive(Debug, Deserialize)]
+struct AssetContent {
+    metadata: Option<AssetMetadata>,
+}
+
+#[derive(Debug, Deserialize)]
+struct AssetMetadata {
+    name: Option<String>,
+    symbol: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct AssetTokenInfo {
+    decimals: Option<u8>,
+}
+
 #[async_trait]
 impl TokenProvider for HeliusProvider {
     fn provider_name(&self) -> &str {
@@ -113,8 +132,6 @@ impl TokenProvider for HeliusProvider {
     }
 
     async fn fetch_metadata(&self, address: &str) -> Result<Metadata, ProviderError> {
-        // For now, just get decimals from account info
-        // Full metadata would require Metaplex metadata account
         let account_info: AccountInfoResponse = self.rpc_call(
             "getAccountInfo",
             json!([
@@ -135,10 +152,25 @@ impl TokenProvider for HeliusProvider {
             None
         };
 
+        let asset_metadata = self
+            .rpc_call::<AssetResponse>(
+                "getAsset",
+                json!({
+                    "id": address
+                }),
+            )
+            .await
+            .ok();
+
+        let (name, symbol, asset_decimals) = asset_metadata
+            .as_ref()
+            .map(extract_asset_metadata)
+            .unwrap_or((None, None, None));
+
         Ok(Metadata {
-            name: None, // Would need Metaplex metadata
-            symbol: None, // Would need Metaplex metadata
-            decimals,
+            name,
+            symbol,
+            decimals: decimals.or(asset_decimals),
             standard: TokenStandard::SplToken,
         })
     }
@@ -223,6 +255,26 @@ impl TokenProvider for HeliusProvider {
     }
 }
 
+fn extract_asset_metadata(asset: &AssetResponse) -> (Option<String>, Option<String>, Option<u8>) {
+    let metadata = asset
+        .content
+        .as_ref()
+        .and_then(|content| content.metadata.as_ref());
+
+    (
+        metadata.and_then(|metadata| clean_metadata_string(metadata.name.as_deref())),
+        metadata.and_then(|metadata| clean_metadata_string(metadata.symbol.as_deref())),
+        asset.token_info.as_ref().and_then(|token_info| token_info.decimals),
+    )
+}
+
+fn clean_metadata_string(value: Option<&str>) -> Option<String> {
+    value
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -242,6 +294,28 @@ mod tests {
         println!("\n=== USDC Metadata ===");
         println!("{:#?}", metadata);
         assert_eq!(metadata.decimals, Some(6));
+    }
+
+    #[test]
+    fn test_extract_asset_metadata() {
+        let asset: AssetResponse = serde_json::from_value(json!({
+            "content": {
+                "metadata": {
+                    "name": "Bonk",
+                    "symbol": "BONK"
+                }
+            },
+            "token_info": {
+                "decimals": 5
+            }
+        }))
+        .unwrap();
+
+        let (name, symbol, decimals) = extract_asset_metadata(&asset);
+
+        assert_eq!(name.as_deref(), Some("Bonk"));
+        assert_eq!(symbol.as_deref(), Some("BONK"));
+        assert_eq!(decimals, Some(5));
     }
 
     #[tokio::test]
