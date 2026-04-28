@@ -19,20 +19,51 @@ Last known good state:
 - Health check is `https://launch-structure-verifier.onrender.com/health`.
 - Render deployed commit `4de79b1`: `Persist payment verifications in Supabase`.
 - GitHub Pages deployed commit `d50e632`: `Deploy paid report frontend`.
+- Local frontend changes after `d50e632`: Paid Report now renders a cleaner structured report instead of raw score/evidence JSON.
 - Paid Report UI is visible after running an analysis.
 - Supabase table `used_payment_txs` exists.
 - Render has `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` set.
 - Payment wallet is `0x6aeaEC86d147e5A13cB7bD50CF2200C85656D6d9`.
 - Paid report price is `5 USDC` on Base.
+- Real test payment was sent on Base and appears valid:
+  - Transaction hash: `0xedff7307b21ca982d42a46a200368a2c372c2810104568dc5da48289dd4ab325`
+  - It transferred `5 USDC` from `0x4afa189f594e3a19c63debffb12429b283bf4e88` to the payment wallet.
+  - Public Base RPC returned status `0x1`, official Base USDC contract, and amount `0x4c4b40` (`5 USDC`).
+- Initial paid-report verification failed with `400` because the browser field contained a full BaseScan URL. Local frontend now extracts raw `0x...` hashes from either URLs or raw hash input.
+- Retrying with the raw hash reached the backend but returned `502`.
+- Render logs showed `Payment store lookup error: InvalidResponse(404)`, meaning Supabase REST could not find `used_payment_txs`.
+- Supabase URL had been set as `https://kewultygallbtruozutw.supabase.co/rest/v1/`; it should be exactly `https://kewultygallbtruozutw.supabase.co` because the backend appends `/rest/v1/...`.
+- Supabase SQL table creation was run and returned success:
+  ```sql
+  create table if not exists used_payment_txs (
+    tx_hash text primary key,
+    report_access_id text not null,
+    token_address text not null,
+    amount_usdc text,
+    created_at timestamptz not null default now()
+  );
+  ```
+- After later Render redeploy, logs showed `Port scan timeout reached, no open ports detected`; next session should inspect startup logs just above that message for the real panic/missing env var.
+- Local verification on April 28, 2026:
+  - `cargo test` passed: 41 active tests, 7 ignored live-provider tests.
+  - With dummy API keys and `PORT=3999`, the server started locally and `/health` returned `200 OK`.
+  - A live request to `https://launch-structure-verifier.onrender.com/health` timed out, so the public backend still appears unreachable from this environment.
+  - Repo-side Render config already uses `type: web`, `cargo build --release --bin launch-structure-verifier-server`, and `./target/release/launch-structure-verifier-server`.
+- Payment verification was fixed after replacing the wrong Render `SUPABASE_SERVICE_ROLE_KEY` with the correct service-role key.
+- RLS is now enabled on `public.used_payment_txs`; the Supabase advisor warning is gone.
+- Live payment verification results on April 28, 2026:
+  - Fake tx `0x0000000000000000000000000000000000000000000000000000000000000001` returned `404`, confirming Supabase auth passed and Alchemy returned transaction-not-found.
+  - Real tx `0xedff7307b21ca982d42a46a200368a2c372c2810104568dc5da48289dd4ab325` returned `200` with `valid: true` and `amount_usdc: "5"`.
+  - Reusing the same real tx returned `valid: false` with `This transaction hash has already been used.`
+  - Live frontend shows the already-used message correctly; local frontend was then cleaned up to avoid showing the same invalid-payment message twice.
 
 Tomorrow checklist:
 
-1. Run one free analysis on the GitHub Pages frontend.
-2. Send a small real test payment of `5 USDC` on Base to the payment wallet, or lower `PAID_REPORT_PRICE_USDC` temporarily for testing.
-3. Paste the Base transaction hash into the Paid Report box and verify it.
-4. Confirm a new row appears in Supabase table `used_payment_txs`.
-5. Paste the same transaction hash again and confirm it is rejected as already used.
-6. Improve the paid report content from raw JSON into a cleaner user-facing report.
+1. Commit and push the local backend/frontend/README fixes.
+2. Let Render redeploy from `main`, then confirm `/health` returns `ok`.
+3. Let GitHub Pages update, then confirm the live frontend no longer shows duplicate already-used payment messages.
+4. Run one fresh analysis on the live frontend.
+5. Test a BaseScan transaction URL in the paid-report input using an already-used tx and confirm the raw hash extraction still produces the already-used message.
 
 Important warnings:
 
@@ -203,7 +234,7 @@ Payment flow:
    - transfer token is official Base USDC
    - recipient is `PAYMENT_WALLET_ADDRESS`
    - amount is at least `PAID_REPORT_PRICE_USDC`
-   - transaction hash has not already been used in the current server process
+   - transaction hash has not already been used, using Supabase when configured or in-memory storage for local development
 
 Verification request:
 
@@ -322,12 +353,13 @@ For Render or similar platforms, make sure these environment variables are set:
 
 - `HELIUS_API_KEY`
 - `ALCHEMY_API_KEY`
-- `PORT`
 - `FRONTEND_ORIGIN`
 - `PAYMENT_WALLET_ADDRESS`
 - `PAID_REPORT_PRICE_USDC`
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
+
+Do not manually set `PORT` on Render unless Render support explicitly asks for it. Render provides `PORT`; the server defaults to `3000` only for local development.
 
 The server binds to `0.0.0.0`, which is required for external hosting.
 

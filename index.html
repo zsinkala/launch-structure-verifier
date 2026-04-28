@@ -61,6 +61,11 @@
             return data;
         }
 
+        function extractTxHash(value) {
+            const match = value.trim().match(/0x[a-fA-F0-9]{64}/);
+            return match ? match[0] : value.trim();
+        }
+
         async function verifyPayment(txHash, tokenAddress) {
             const response = await fetch(PAYMENT_VERIFY_URL, {
                 method: 'POST',
@@ -68,12 +73,15 @@
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    tx_hash: txHash.trim(),
+                    tx_hash: extractTxHash(txHash),
                     token_address: tokenAddress.trim()
                 })
             });
 
             if (!response.ok) {
+                if (response.status === 502) {
+                    throw new Error("Payment verification service is temporarily failing while checking RPC or payment storage. Your transaction may still be valid.");
+                }
                 throw new Error(`Payment verification failed with status ${response.status}`);
             }
 
@@ -130,7 +138,7 @@
                     if (data.valid) {
                         setPaidReportAccessId(data.report_access_id);
                     } else {
-                        setPaymentError(data.message || "Payment could not be verified.");
+                        setPaymentError(null);
                     }
                 } catch (err) {
                     setPaymentError(err.message || "Could not verify payment.");
@@ -159,9 +167,52 @@
                 }
             };
 
+            const getStatusPill = (status) => {
+                switch(status) {
+                    case 'Pass': return 'bg-green-50 text-green-700 border-green-200';
+                    case 'Fail': return 'bg-red-50 text-red-700 border-red-200';
+                    case 'Unknown': return 'bg-gray-50 text-gray-700 border-gray-200';
+                    default: return 'bg-gray-50 text-gray-700 border-gray-200';
+                }
+            };
+
+            const formatReportKey = (key) => {
+                return key
+                    .replace(/_/g, ' ')
+                    .replace(/\b\w/g, char => char.toUpperCase());
+            };
+
+            const formatReportValue = (key, value) => {
+                if (value === null || value === undefined) return 'Unavailable';
+                if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+                if (typeof value === 'number') {
+                    const formatted = Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/\.?0+$/, '');
+                    return key.includes('pct') ? `${formatted}%` : formatted;
+                }
+                if (typeof value === 'string') return value.replace(/_/g, ' ');
+                if (Array.isArray(value)) {
+                    if (value.length === 0) return 'None reported';
+                    return value.map(item => formatReportValue(key, item)).join(', ');
+                }
+                if (typeof value === 'object') {
+                    return Object.entries(value)
+                        .map(([nestedKey, nestedValue]) => `${formatReportKey(nestedKey)}: ${formatReportValue(nestedKey, nestedValue)}`)
+                        .join('; ');
+                }
+                return String(value);
+            };
+
+            const checkComponent = (result, checkId) => {
+                return result.score.components.find(component => component.id === checkId);
+            };
+
             const exampleAddresses = chain === "solana" 
                 ? "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263 (BONK) or EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v (USDC)"
                 : "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913 (USDC on Base)";
+
+            const failedChecks = result ? result.checks.filter(check => check.status === 'Fail') : [];
+            const unknownChecks = result ? result.checks.filter(check => check.status === 'Unknown') : [];
+            const passedChecks = result ? result.checks.filter(check => check.status === 'Pass') : [];
 
             return (
                 <div className="max-w-4xl mx-auto">
@@ -320,7 +371,7 @@
                                                 type="text"
                                                 value={paymentTxHash}
                                                 onChange={(e) => setPaymentTxHash(e.target.value)}
-                                                placeholder="0x..."
+                                                placeholder="0x... or BaseScan transaction URL"
                                                 className="w-full p-2 border rounded font-mono text-sm"
                                             />
                                         </div>
@@ -352,28 +403,141 @@
                                         </div>
 
                                         <div className="border rounded p-4">
-                                            <h4 className="font-medium mb-3">Detailed Report</h4>
-                                            <div className="space-y-3 text-sm">
+                                            <div className="flex items-start justify-between gap-4 mb-4">
                                                 <div>
-                                                    <div className="font-medium">Score Model</div>
-                                                    <div className="text-gray-700">{result.score.model}</div>
+                                                    <h4 className="font-medium">Detailed Report</h4>
+                                                    <p className="text-sm text-gray-600 mt-1">
+                                                        A structured readout of the score, risks, and on-chain evidence behind this analysis.
+                                                    </p>
                                                 </div>
-                                                <div>
-                                                    <div className="font-medium">Active Weight Total</div>
-                                                    <div className="text-gray-700">{result.score.weights_total}</div>
+                                                <div className={`px-3 py-1 rounded border text-sm font-medium ${getGradeColor(result.score.grade)}`}>
+                                                    {result.score.grade}
                                                 </div>
-                                                <div>
-                                                    <div className="font-medium">Score Components</div>
-                                                    <pre className="bg-gray-50 p-3 rounded overflow-auto text-xs mt-1">
-{JSON.stringify(result.score.components, null, 2)}
-                                                    </pre>
+                                            </div>
+
+                                            <div className="grid md:grid-cols-4 gap-3 mb-5 text-sm">
+                                                <div className="bg-gray-50 p-3 rounded">
+                                                    <div className="text-xs text-gray-500">Token</div>
+                                                    <div className="font-medium">{result.token?.symbol || result.token?.name || 'Unknown'}</div>
                                                 </div>
-                                                <div>
-                                                    <div className="font-medium">Check Evidence</div>
-                                                    <pre className="bg-gray-50 p-3 rounded overflow-auto text-xs mt-1">
-{JSON.stringify(result.checks.map(({ id, evidence }) => ({ id, evidence })), null, 2)}
-                                                    </pre>
+                                                <div className="bg-gray-50 p-3 rounded">
+                                                    <div className="text-xs text-gray-500">Chain</div>
+                                                    <div className="font-medium capitalize">{result.chain}</div>
                                                 </div>
+                                                <div className="bg-gray-50 p-3 rounded">
+                                                    <div className="text-xs text-gray-500">Score</div>
+                                                    <div className="font-medium">{result.score.fairness_score || 'N/A'}/100</div>
+                                                </div>
+                                                <div className="bg-gray-50 p-3 rounded">
+                                                    <div className="text-xs text-gray-500">Status</div>
+                                                    <div className="font-medium capitalize">{result.status}</div>
+                                                </div>
+                                            </div>
+
+                                            <div className="space-y-5 text-sm">
+                                                <section>
+                                                    <h5 className="font-medium mb-2">Executive Summary</h5>
+                                                    <p className="text-gray-700">{result.explain.summary}</p>
+                                                    <div className="mt-3 grid md:grid-cols-3 gap-3">
+                                                        <div className="border rounded p-3">
+                                                            <div className="text-xs text-gray-500">Passed Checks</div>
+                                                            <div className="text-lg font-semibold text-green-700">{passedChecks.length}</div>
+                                                        </div>
+                                                        <div className="border rounded p-3">
+                                                            <div className="text-xs text-gray-500">Failed Checks</div>
+                                                            <div className="text-lg font-semibold text-red-700">{failedChecks.length}</div>
+                                                        </div>
+                                                        <div className="border rounded p-3">
+                                                            <div className="text-xs text-gray-500">Unknown Checks</div>
+                                                            <div className="text-lg font-semibold text-gray-700">{unknownChecks.length}</div>
+                                                        </div>
+                                                    </div>
+                                                </section>
+
+                                                <section>
+                                                    <h5 className="font-medium mb-2">Key Findings</h5>
+                                                    <div className="space-y-2">
+                                                        {failedChecks.length === 0 && unknownChecks.length === 0 && (
+                                                            <div className="bg-green-50 border border-green-200 text-green-800 p-3 rounded">
+                                                                No failed or unknown structural checks were detected in this analysis.
+                                                            </div>
+                                                        )}
+                                                        {failedChecks.map(check => (
+                                                            <div key={check.id} className="bg-red-50 border border-red-200 text-red-800 p-3 rounded">
+                                                                <span className="font-medium">{check.label}</span>: failed {check.severity.toLowerCase()} severity check.
+                                                            </div>
+                                                        ))}
+                                                        {unknownChecks.map(check => (
+                                                            <div key={check.id} className="bg-gray-50 border border-gray-200 text-gray-700 p-3 rounded">
+                                                                <span className="font-medium">{check.label}</span>: data was unavailable, so this weight was excluded from the score.
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </section>
+
+                                                <section>
+                                                    <h5 className="font-medium mb-2">Evidence Review</h5>
+                                                    <div className="space-y-3">
+                                                        {result.checks.map(check => {
+                                                            const component = checkComponent(result, check.id);
+                                                            return (
+                                                                <div key={check.id} className="border rounded p-3">
+                                                                    <div className="flex items-start justify-between gap-3 mb-2">
+                                                                        <div>
+                                                                            <div className="font-medium">{check.label}</div>
+                                                                            <div className="text-xs text-gray-500">
+                                                                                {formatReportKey(check.category)} • {check.severity} severity • Weight {check.weight}
+                                                                            </div>
+                                                                        </div>
+                                                                        <span className={`px-2 py-1 rounded border text-xs font-medium ${getStatusPill(check.status)}`}>
+                                                                            {check.status}
+                                                                        </span>
+                                                                    </div>
+
+                                                                    <div className="grid md:grid-cols-2 gap-2 text-xs">
+                                                                        <div className="bg-gray-50 p-2 rounded">
+                                                                            <span className="text-gray-500">Component Score:</span>{' '}
+                                                                            <span className="font-medium">{check.score_component !== null ? `${check.score_component}/100` : 'Excluded'}</span>
+                                                                        </div>
+                                                                        <div className="bg-gray-50 p-2 rounded">
+                                                                            <span className="text-gray-500">Weighted Points:</span>{' '}
+                                                                            <span className="font-medium">{component?.weighted_points !== null && component?.weighted_points !== undefined ? component.weighted_points.toFixed(2) : 'Excluded'}</span>
+                                                                        </div>
+                                                                    </div>
+
+                                                                    <dl className="mt-3 grid md:grid-cols-2 gap-2">
+                                                                        {Object.entries(check.evidence || {}).map(([key, value]) => (
+                                                                            <div key={key} className="bg-gray-50 p-2 rounded">
+                                                                                <dt className="text-xs text-gray-500">{formatReportKey(key)}</dt>
+                                                                                <dd className="text-gray-800 break-words">{formatReportValue(key, value)}</dd>
+                                                                            </div>
+                                                                        ))}
+                                                                    </dl>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </section>
+
+                                                <section>
+                                                    <h5 className="font-medium mb-2">Scoring Method</h5>
+                                                    <div className="bg-gray-50 p-3 rounded space-y-2">
+                                                        <div><span className="font-medium">Model:</span> {result.score.model}</div>
+                                                        <div><span className="font-medium">Active weight total:</span> {result.score.weights_total}</div>
+                                                        {result.score.notes.map((note, idx) => (
+                                                            <div key={idx} className="text-gray-700">{note}</div>
+                                                        ))}
+                                                    </div>
+                                                </section>
+
+                                                <section>
+                                                    <h5 className="font-medium mb-2">Interpretation</h5>
+                                                    <ul className="space-y-2">
+                                                        {result.explain.interpretation.what_to_do.map((item, idx) => (
+                                                            <li key={idx} className="text-gray-700">• {item}</li>
+                                                        ))}
+                                                    </ul>
+                                                </section>
                                             </div>
                                         </div>
                                     </div>

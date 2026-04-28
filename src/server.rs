@@ -117,7 +117,10 @@ pub async fn verify_payment_handler(
             eprintln!("Payment verification network error: {}", message);
             StatusCode::BAD_GATEWAY
         }
-        PaymentVerificationError::InvalidResponse => StatusCode::BAD_GATEWAY,
+        PaymentVerificationError::InvalidResponse(message) => {
+            eprintln!("Payment verification invalid RPC response: {}", message);
+            StatusCode::BAD_GATEWAY
+        }
     })?;
 
     if response.valid {

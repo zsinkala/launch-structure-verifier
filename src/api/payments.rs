@@ -23,7 +23,7 @@ pub struct VerifyPaymentResponse {
 pub enum PaymentVerificationError {
     InvalidInput,
     NetworkError(String),
-    InvalidResponse,
+    InvalidResponse(String),
     TransactionNotFound,
 }
 
@@ -103,13 +103,16 @@ async fn fetch_transaction_receipt(
         .map_err(|e| PaymentVerificationError::NetworkError(e.to_string()))?;
 
     if !response.status().is_success() {
-        return Err(PaymentVerificationError::InvalidResponse);
+        return Err(PaymentVerificationError::InvalidResponse(format!(
+            "Alchemy receipt request returned status {}",
+            response.status()
+        )));
     }
 
     let rpc_response: RpcResponse<TransactionReceipt> = response
         .json()
         .await
-        .map_err(|_| PaymentVerificationError::InvalidResponse)?;
+        .map_err(|e| PaymentVerificationError::InvalidResponse(e.to_string()))?;
 
     rpc_response.result.ok_or(PaymentVerificationError::TransactionNotFound)
 }

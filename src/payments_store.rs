@@ -9,8 +9,8 @@ pub struct SupabasePaymentStore {
 impl SupabasePaymentStore {
     pub fn new(url: String, service_role_key: String) -> Self {
         Self {
-            url: url.trim_end_matches('/').to_string(),
-            service_role_key,
+            url: normalize_supabase_url(&url),
+            service_role_key: normalize_service_role_key(&service_role_key),
         }
     }
 
@@ -31,7 +31,9 @@ impl SupabasePaymentStore {
             .map_err(|e| PaymentStoreError::Network(e.to_string()))?;
 
         if !response.status().is_success() {
-            return Err(PaymentStoreError::InvalidResponse(response.status().as_u16()));
+            let status = response.status().as_u16();
+            let body = response.text().await.unwrap_or_default();
+            return Err(PaymentStoreError::InvalidResponse { status, body });
         }
 
         let rows: Vec<serde_json::Value> = response
@@ -59,7 +61,9 @@ impl SupabasePaymentStore {
         if response.status().is_success() {
             Ok(())
         } else {
-            Err(PaymentStoreError::InvalidResponse(response.status().as_u16()))
+            let status = response.status().as_u16();
+            let body = response.text().await.unwrap_or_default();
+            Err(PaymentStoreError::InvalidResponse { status, body })
         }
     }
 
@@ -79,9 +83,49 @@ pub struct UsedPaymentTxRecord {
 #[derive(Debug)]
 pub enum PaymentStoreError {
     Network(String),
-    InvalidResponse(u16),
+    InvalidResponse { status: u16, body: String },
 }
 
 fn encode_query_value(value: &str) -> String {
     value.replace('%', "%25").replace(',', "%2C")
+}
+
+fn normalize_supabase_url(value: &str) -> String {
+    value
+        .trim()
+        .trim_end_matches('/')
+        .trim_end_matches("/rest/v1")
+        .to_string()
+}
+
+fn normalize_service_role_key(value: &str) -> String {
+    value
+        .trim()
+        .strip_prefix("Bearer ")
+        .unwrap_or_else(|| value.trim())
+        .trim()
+        .to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_normalize_supabase_url() {
+        assert_eq!(
+            normalize_supabase_url("https://example.supabase.co"),
+            "https://example.supabase.co"
+        );
+        assert_eq!(
+            normalize_supabase_url("https://example.supabase.co/rest/v1/"),
+            "https://example.supabase.co"
+        );
+    }
+
+    #[test]
+    fn test_normalize_service_role_key() {
+        assert_eq!(normalize_service_role_key(" key\n"), "key");
+        assert_eq!(normalize_service_role_key("Bearer key"), "key");
+    }
 }
