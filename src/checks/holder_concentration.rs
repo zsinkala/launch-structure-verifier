@@ -6,22 +6,22 @@ pub fn check_holder_concentration(facts: &TokenFacts) -> CheckResult {
         Some(h) => h,
         None => return unknown_result(),
     };
-    
+
     let (top1_pct, top5_pct) = match (holders.top1_pct, holders.top5_pct) {
         (Some(t1), Some(t5)) => (t1, t5),
         _ => return unknown_result(),
     };
-    
+
     let score1 = score_top1(top1_pct);
     let score5 = score_top5(top5_pct);
     let combined = ((score1 + score5) / 2.0).round() as u8;
-    
+
     let status = if combined >= 50 {
         CheckStatus::Pass
     } else {
         CheckStatus::Fail
     };
-    
+
     let severity = if combined >= 80 {
         Severity::Low
     } else if combined >= 50 {
@@ -29,7 +29,7 @@ pub fn check_holder_concentration(facts: &TokenFacts) -> CheckResult {
     } else {
         Severity::High
     };
-    
+
     CheckResult {
         id: "holder_concentration".to_string(),
         label: "Holder concentration".to_string(),
@@ -113,7 +113,7 @@ fn unknown_result() -> CheckResult {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_excellent_distribution() {
         let facts = TokenFacts {
@@ -127,13 +127,13 @@ mod tests {
             authorities: None,
             creation: None,
         };
-        
+
         let result = check_holder_concentration(&facts);
-        
+
         assert!(matches!(result.status, CheckStatus::Pass));
         assert!(result.score_component.unwrap() >= 95);
     }
-    
+
     #[test]
     fn test_high_concentration_fragile() {
         let facts = TokenFacts {
@@ -147,9 +147,9 @@ mod tests {
             authorities: None,
             creation: None,
         };
-        
+
         let result = check_holder_concentration(&facts);
-        
+
         assert!(matches!(result.status, CheckStatus::Fail));
         assert!(matches!(result.severity, Severity::High));
         assert!(result.score_component.unwrap() < 30);

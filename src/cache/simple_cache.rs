@@ -1,6 +1,6 @@
+use crate::api::types::AnalyzeResponse;
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
-use crate::api::types::AnalyzeResponse;
 
 #[derive(Clone)]
 pub struct CacheEntry {
@@ -24,14 +24,14 @@ impl SimpleCache {
         if let Some(entry) = self.entries.get(key) {
             let now = current_timestamp();
             let age = now.saturating_sub(entry.cached_at);
-            
+
             if age < entry.ttl_seconds {
                 // Still valid
                 let mut response = entry.response.clone();
-                
+
                 // Update cache metadata in response
                 response.requested_at = format!("cached_{}", entry.cached_at);
-                
+
                 return Some(response);
             }
         }
@@ -44,7 +44,7 @@ impl SimpleCache {
             cached_at: current_timestamp(),
             ttl_seconds,
         };
-        
+
         self.entries.insert(key, entry);
     }
 
@@ -88,11 +88,11 @@ pub fn ttl_for_response(response: &AnalyzeResponse) -> u64 {
     // Check token age from response
     if let Some(token) = &response.token {
         match token.age_band.as_str() {
-            "LessThan24h" => 600,      // 10 minutes for very new tokens
-            "Day1To7" => 3600,         // 1 hour for early tokens
-            "GreaterThan7d" => 3600,   // 1 hour for mature tokens
-            "Unknown" => 1800,         // 30 minutes for unknown age
-            _ => 3600,                 // Default 1 hour
+            "LessThan24h" => 600,    // 10 minutes for very new tokens
+            "Day1To7" => 3600,       // 1 hour for early tokens
+            "GreaterThan7d" => 3600, // 1 hour for mature tokens
+            "Unknown" => 1800,       // 30 minutes for unknown age
+            _ => 3600,               // Default 1 hour
         }
     } else {
         1800 // 30 minutes if no token metadata
@@ -102,7 +102,9 @@ pub fn ttl_for_response(response: &AnalyzeResponse) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::api::types::{AnalyzeResponse, AnalysisStatus, ExplainSection, InterpretationSection};
+    use crate::api::types::{
+        AnalysisStatus, AnalyzeResponse, ExplainSection, InterpretationSection,
+    };
     use crate::scoring::ScoreResult;
     use crate::types::Grade;
 
@@ -127,9 +129,7 @@ mod tests {
             explain: ExplainSection {
                 summary: "Test".to_string(),
                 method: vec![],
-                interpretation: InterpretationSection {
-                    what_to_do: vec![],
-                },
+                interpretation: InterpretationSection { what_to_do: vec![] },
             },
             errors: vec![],
         }
@@ -139,12 +139,12 @@ mod tests {
     fn test_cache_set_and_get() {
         let mut cache = SimpleCache::new();
         let response = make_test_response();
-        
+
         cache.set("test_key".to_string(), response.clone(), 3600);
-        
+
         let cached = cache.get("test_key");
         assert!(cached.is_some());
-        
+
         let cached_response = cached.unwrap();
         assert_eq!(cached_response.analysis_id, "test123");
     }
@@ -153,10 +153,10 @@ mod tests {
     fn test_cache_expiration() {
         let mut cache = SimpleCache::new();
         let response = make_test_response();
-        
+
         // Set with 0 second TTL (immediately expired)
         cache.set("test_key".to_string(), response, 0);
-        
+
         // Should not retrieve expired entry
         let cached = cache.get("test_key");
         assert!(cached.is_none());
@@ -166,10 +166,10 @@ mod tests {
     fn test_cache_remove() {
         let mut cache = SimpleCache::new();
         let response = make_test_response();
-        
+
         cache.set("test_key".to_string(), response, 3600);
         assert!(cache.get("test_key").is_some());
-        
+
         let removed = cache.remove("test_key");
         assert!(removed);
         assert!(cache.get("test_key").is_none());
@@ -179,12 +179,12 @@ mod tests {
     fn test_cache_clear() {
         let mut cache = SimpleCache::new();
         let response = make_test_response();
-        
+
         cache.set("key1".to_string(), response.clone(), 3600);
         cache.set("key2".to_string(), response, 3600);
-        
+
         assert_eq!(cache.size(), 2);
-        
+
         cache.clear();
         assert_eq!(cache.size(), 0);
     }
@@ -193,17 +193,17 @@ mod tests {
     fn test_cache_cleanup() {
         let mut cache = SimpleCache::new();
         let response = make_test_response();
-        
+
         // Add expired entry
         cache.set("expired".to_string(), response.clone(), 0);
-        
+
         // Add valid entry
         cache.set("valid".to_string(), response, 3600);
-        
+
         assert_eq!(cache.size(), 2);
-        
+
         cache.cleanup();
-        
+
         // Only valid entry should remain
         assert_eq!(cache.size(), 1);
         assert!(cache.get("valid").is_some());

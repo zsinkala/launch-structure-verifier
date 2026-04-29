@@ -1,18 +1,15 @@
-use crate::types::*;
-use crate::providers::TokenProvider;
-use crate::checks::*;
-use crate::scoring::aggregate_score;
 use super::types::*;
+use crate::checks::*;
+use crate::providers::TokenProvider;
+use crate::scoring::aggregate_score;
+use crate::types::*;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 static ANALYSIS_ID_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 /// Main API handler: orchestrates provider calls, checks, and scoring
-pub async fn analyze<P: TokenProvider>(
-    request: AnalyzeRequest,
-    provider: &P,
-) -> AnalyzeResponse {
+pub async fn analyze<P: TokenProvider>(request: AnalyzeRequest, provider: &P) -> AnalyzeResponse {
     let analysis_id = generate_analysis_id();
     let requested_at = current_timestamp();
     let mut errors = Vec::new();
@@ -134,7 +131,7 @@ fn run_checks(facts: &TokenFacts, chain: &str) -> Vec<CheckResult> {
 
 fn build_token_metadata(facts: &TokenFacts) -> Option<TokenMetadata> {
     let metadata = facts.metadata.as_ref()?;
-    
+
     Some(TokenMetadata {
         name: metadata.name.clone(),
         symbol: metadata.symbol.clone(),
@@ -143,17 +140,24 @@ fn build_token_metadata(facts: &TokenFacts) -> Option<TokenMetadata> {
         program_standard: format!("{:?}", metadata.standard),
         created_at: facts.creation.as_ref().and_then(|c| c.created_at.clone()),
         age_seconds: facts.creation.as_ref().and_then(|c| c.age_seconds),
-        age_band: facts.creation.as_ref()
+        age_band: facts
+            .creation
+            .as_ref()
             .map(|c| format!("{:?}", c.age_band))
             .unwrap_or_else(|| "Unknown".to_string()),
     })
 }
 
-fn generate_explanation(checks: &[CheckResult], score: &crate::scoring::ScoreResult) -> ExplainSection {
+fn generate_explanation(
+    checks: &[CheckResult],
+    score: &crate::scoring::ScoreResult,
+) -> ExplainSection {
     let summary = match score.grade {
         Grade::Strong => "Structure looks sound. No major weaknesses detected.".to_string(),
         Grade::Mixed => "Structure is mostly sound with some areas of concern.".to_string(),
-        Grade::Fragile => "Structure shows significant fragility. Proceed with caution.".to_string(),
+        Grade::Fragile => {
+            "Structure shows significant fragility. Proceed with caution.".to_string()
+        }
         Grade::Compromised => "Structure is fundamentally compromised. High risk.".to_string(),
     };
 
@@ -166,13 +170,19 @@ fn generate_explanation(checks: &[CheckResult], score: &crate::scoring::ScoreRes
 
     // Check for critical failures
     let has_failures = checks.iter().any(|c| matches!(c.status, CheckStatus::Fail));
-    
+
     for check in checks {
-        if matches!(check.severity, Severity::Critical) && matches!(check.status, CheckStatus::Fail) {
+        if matches!(check.severity, Severity::Critical) && matches!(check.status, CheckStatus::Fail)
+        {
             if check.id == "mint_authority_disabled" {
-                what_to_do.push("Mint authority exists: supply is mutable and can be inflated.".to_string());
+                what_to_do.push(
+                    "Mint authority exists: supply is mutable and can be inflated.".to_string(),
+                );
             } else if check.id == "ownership_renounced" {
-                what_to_do.push("Ownership not renounced: contract parameters can still be changed.".to_string());
+                what_to_do.push(
+                    "Ownership not renounced: contract parameters can still be changed."
+                        .to_string(),
+                );
             }
         }
     }
@@ -181,7 +191,8 @@ fn generate_explanation(checks: &[CheckResult], score: &crate::scoring::ScoreRes
     for check in checks {
         if matches!(check.severity, Severity::High) && matches!(check.status, CheckStatus::Fail) {
             if check.id == "freeze_authority_disabled" {
-                what_to_do.push("Freeze authority exists: token balances can be frozen.".to_string());
+                what_to_do
+                    .push("Freeze authority exists: token balances can be frozen.".to_string());
             }
         }
     }
@@ -191,7 +202,9 @@ fn generate_explanation(checks: &[CheckResult], score: &crate::scoring::ScoreRes
         if check.id == "holder_concentration" {
             if let Some(score_comp) = check.score_component {
                 if score_comp < 50 {
-                    what_to_do.push("High holder concentration increases structural fragility.".to_string());
+                    what_to_do.push(
+                        "High holder concentration increases structural fragility.".to_string(),
+                    );
                 }
             }
         }
@@ -227,10 +240,12 @@ fn current_timestamp() -> String {
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_secs();
-    format!("2026-01-31T{:02}:{:02}:{:02}Z", 
-        (now / 3600) % 24, 
-        (now / 60) % 60, 
-        now % 60)
+    format!(
+        "2026-01-31T{:02}:{:02}:{:02}Z",
+        (now / 3600) % 24,
+        (now / 60) % 60,
+        now % 60
+    )
 }
 
 #[cfg(test)]
@@ -329,7 +344,11 @@ mod tests {
 
         // Grade must be Compromised due to critical failure
         assert!(matches!(response.score.grade, Grade::Compromised));
-        assert!(response.explain.interpretation.what_to_do.iter()
+        assert!(response
+            .explain
+            .interpretation
+            .what_to_do
+            .iter()
             .any(|s| s.contains("Mint authority exists")));
     }
 
@@ -349,7 +368,7 @@ mod tests {
                 owner: None,
                 mint_mutable: Some(false),
             }),
-            holders: None, // Missing holders
+            holders: None,  // Missing holders
             creation: None, // Missing creation
         };
 
@@ -365,9 +384,11 @@ mod tests {
 
         assert_eq!(response.status, AnalysisStatus::Partial);
         assert!(response.errors.len() > 0);
-        
+
         // Some checks should be unknown
-        let unknown_count = response.checks.iter()
+        let unknown_count = response
+            .checks
+            .iter()
             .filter(|c| matches!(c.status, CheckStatus::Unknown))
             .count();
         assert!(unknown_count > 0);

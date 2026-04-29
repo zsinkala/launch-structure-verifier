@@ -2,4 +2,4 @@
 
 pub mod aggregator;
 
-pub use aggregator::{aggregate_score, ScoreResult, ScoreComponent};
+pub use aggregator::{aggregate_score, ScoreComponent, ScoreResult};

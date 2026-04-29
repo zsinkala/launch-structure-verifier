@@ -114,10 +114,15 @@ async fn fetch_transaction_receipt(
         .await
         .map_err(|e| PaymentVerificationError::InvalidResponse(e.to_string()))?;
 
-    rpc_response.result.ok_or(PaymentVerificationError::TransactionNotFound)
+    rpc_response
+        .result
+        .ok_or(PaymentVerificationError::TransactionNotFound)
 }
 
-fn find_matching_usdc_transfer(receipt: &TransactionReceipt, receiving_wallet: &str) -> Option<u64> {
+fn find_matching_usdc_transfer(
+    receipt: &TransactionReceipt,
+    receiving_wallet: &str,
+) -> Option<u64> {
     receipt.logs.iter().find_map(|log| {
         if normalize_address(&log.address) != normalize_address(BASE_USDC_ADDRESS) {
             return None;
@@ -260,18 +265,18 @@ mod tests {
                 address: BASE_USDC_ADDRESS.to_string(),
                 topics: vec![
                     ERC20_TRANSFER_TOPIC.to_string(),
-                    "0x0000000000000000000000001111111111111111111111111111111111111111".to_string(),
-                    "0x0000000000000000000000002222222222222222222222222222222222222222".to_string(),
+                    "0x0000000000000000000000001111111111111111111111111111111111111111"
+                        .to_string(),
+                    "0x0000000000000000000000002222222222222222222222222222222222222222"
+                        .to_string(),
                 ],
-                data: "0x00000000000000000000000000000000000000000000000000000000004c4b40".to_string(),
+                data: "0x00000000000000000000000000000000000000000000000000000000004c4b40"
+                    .to_string(),
             }],
         };
 
         assert_eq!(
-            find_matching_usdc_transfer(
-                &receipt,
-                "0x2222222222222222222222222222222222222222"
-            ),
+            find_matching_usdc_transfer(&receipt, "0x2222222222222222222222222222222222222222"),
             Some(5_000_000)
         );
     }

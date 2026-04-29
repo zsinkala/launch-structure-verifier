@@ -6,18 +6,22 @@ pub fn check_standard_sanity(facts: &TokenFacts, chain: &str) -> CheckResult {
         Some(m) => m,
         None => return unknown_result(),
     };
-    
+
     let (is_standard, severity) = match chain {
         "solana" => check_solana_standard(&metadata.standard),
         "base" | "evm" => check_evm_standard(&metadata.standard, &metadata.decimals),
         _ => (false, Severity::Medium),
     };
-    
+
     CheckResult {
         id: "standard_sanity".to_string(),
         label: "Standard sanity".to_string(),
         category: "interface".to_string(),
-        status: if is_standard { CheckStatus::Pass } else { CheckStatus::Fail },
+        status: if is_standard {
+            CheckStatus::Pass
+        } else {
+            CheckStatus::Fail
+        },
         severity,
         value: json!({
             "standard": format!("{:?}", metadata.standard),
@@ -69,7 +73,7 @@ fn unknown_result() -> CheckResult {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_solana_spl_token_pass() {
         let facts = TokenFacts {
@@ -84,13 +88,13 @@ mod tests {
             holders: None,
             creation: None,
         };
-        
+
         let result = check_standard_sanity(&facts, "solana");
-        
+
         assert!(matches!(result.status, CheckStatus::Pass));
         assert_eq!(result.score_component, Some(100));
     }
-    
+
     #[test]
     fn test_evm_erc20_pass() {
         let facts = TokenFacts {
@@ -105,13 +109,13 @@ mod tests {
             holders: None,
             creation: None,
         };
-        
+
         let result = check_standard_sanity(&facts, "evm");
-        
+
         assert!(matches!(result.status, CheckStatus::Pass));
         assert_eq!(result.score_component, Some(100));
     }
-    
+
     #[test]
     fn test_unknown_standard_fail() {
         let facts = TokenFacts {
@@ -126,9 +130,9 @@ mod tests {
             holders: None,
             creation: None,
         };
-        
+
         let result = check_standard_sanity(&facts, "solana");
-        
+
         assert!(matches!(result.status, CheckStatus::Fail));
         assert_eq!(result.score_component, Some(0));
         assert!(matches!(result.severity, Severity::High));

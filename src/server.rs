@@ -4,23 +4,22 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use tower_http::cors::{CorsLayer, Any};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::Mutex;
+use tower_http::cors::{Any, CorsLayer};
 
-use crate::api::types::{AnalyzeRequest, AnalyzeResponse};
 use crate::api::cached_analyze::analyze_with_cache;
 use crate::api::payments::{
-    verify_base_usdc_payment, PaymentVerificationError, VerifyPaymentRequest,
-    VerifyPaymentResponse,
+    verify_base_usdc_payment, PaymentVerificationError, VerifyPaymentRequest, VerifyPaymentResponse,
 };
-use crate::providers::helius::HeliusProvider;
-use crate::providers::alchemy::AlchemyProvider;
+use crate::api::types::{AnalyzeRequest, AnalyzeResponse};
 use crate::cache::SimpleCache;
 use crate::payments_store::{SupabasePaymentStore, UsedPaymentTxRecord};
+use crate::providers::alchemy::AlchemyProvider;
+use crate::providers::helius::HeliusProvider;
 
 pub struct AppState {
     pub cache: Mutex<SimpleCache>,
@@ -39,7 +38,10 @@ pub async fn analyze_handler(
     headers: HeaderMap,
     Json(request): Json<AnalyzeRequest>,
 ) -> Result<Json<AnalyzeResponse>, StatusCode> {
-    println!("Received request for: {} on {}", request.address, request.chain);
+    println!(
+        "Received request for: {} on {}",
+        request.address, request.chain
+    );
 
     let client_id = client_id_from_headers(&headers, remote_addr);
     let mut rate_limiter = state.rate_limiter.lock().await;
@@ -175,8 +177,8 @@ pub async fn run_server(
             CorsLayer::new().allow_origin(Any)
         }
     }
-        .allow_methods(Any)
-        .allow_headers(Any);
+    .allow_methods(Any)
+    .allow_headers(Any);
 
     let app = Router::new()
         .route("/health", get(health_handler))
@@ -190,13 +192,14 @@ pub async fn run_server(
     println!("🚀 Server running on http://{}", addr);
     println!("📊 Ready to analyze tokens on Solana and Base!");
 
-    let listener = tokio::net::TcpListener::bind(&addr)
-        .await
-        .unwrap();
+    let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
 
-    axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>())
-        .await
-        .unwrap();
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await
+    .unwrap();
 }
 
 async fn payment_tx_was_used(
@@ -326,9 +329,15 @@ mod tests {
             "base",
             "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
         ));
-        assert!(!is_valid_request_address("solana", "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"));
+        assert!(!is_valid_request_address(
+            "solana",
+            "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+        ));
         assert!(!is_valid_request_address("base", "not-an-address"));
-        assert!(!is_valid_request_address("unknown", "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263"));
+        assert!(!is_valid_request_address(
+            "unknown",
+            "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263"
+        ));
     }
 
     #[test]

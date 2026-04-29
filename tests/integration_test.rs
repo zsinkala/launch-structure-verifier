@@ -1,6 +1,6 @@
-use launch_structure_verifier::*;
 use launch_structure_verifier::checks::*;
 use launch_structure_verifier::scoring::aggregate_score;
+use launch_structure_verifier::*;
 
 #[test]
 fn test_fair_launch_solana_full_flow() {
@@ -47,15 +47,21 @@ fn test_fair_launch_solana_full_flow() {
     let result = aggregate_score(&checks);
 
     // Assertions
-    assert!(result.fairness_score.unwrap() >= 95, "Fair launch should score very high");
+    assert!(
+        result.fairness_score.unwrap() >= 95,
+        "Fair launch should score very high"
+    );
     assert!(matches!(result.grade, Grade::Strong));
     assert_eq!(result.weights_total, 85); // All checks present except ownership (EVM-only)
-    
+
     // Verify no critical failures
     for check in &checks {
         if matches!(check.severity, Severity::Critical) {
-            assert!(matches!(check.status, CheckStatus::Pass), 
-                "Critical check {} should pass", check.id);
+            assert!(
+                matches!(check.status, CheckStatus::Pass),
+                "Critical check {} should pass",
+                check.id
+            );
         }
     }
 }
@@ -105,11 +111,16 @@ fn test_mint_authority_exists_critical_override() {
     let result = aggregate_score(&checks);
 
     // Critical assertion: grade MUST be Compromised
-    assert!(matches!(result.grade, Grade::Compromised), 
-        "Mint authority exists should force Compromised grade");
-    
+    assert!(
+        matches!(result.grade, Grade::Compromised),
+        "Mint authority exists should force Compromised grade"
+    );
+
     // Score might be high mathematically, but grade is overridden
-    println!("Score: {:?}, Grade: {:?}", result.fairness_score, result.grade);
+    println!(
+        "Score: {:?}, Grade: {:?}",
+        result.fairness_score, result.grade
+    );
 }
 
 #[test]
@@ -195,7 +206,10 @@ fn test_partial_data_realistic_scenario() {
     let result = aggregate_score(&checks);
 
     // Holder concentration should be unknown
-    let holder_check = checks.iter().find(|c| c.id == "holder_concentration").unwrap();
+    let holder_check = checks
+        .iter()
+        .find(|c| c.id == "holder_concentration")
+        .unwrap();
     assert!(matches!(holder_check.status, CheckStatus::Unknown));
     assert_eq!(holder_check.score_component, None);
 

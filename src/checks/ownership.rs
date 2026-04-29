@@ -20,11 +20,8 @@ pub fn check_ownership_renounced(facts: &TokenFacts) -> CheckResult {
     };
 
     let owner = &authorities.owner;
-    let is_renounced = owner
-        .as_deref()
-        .map(is_renounced_owner)
-        .unwrap_or(true);
-    
+    let is_renounced = owner.as_deref().map(is_renounced_owner).unwrap_or(true);
+
     let (status, score) = if is_renounced {
         (CheckStatus::Pass, Some(100))
     } else {
@@ -53,8 +50,7 @@ pub fn check_ownership_renounced(facts: &TokenFacts) -> CheckResult {
 fn is_renounced_owner(owner: &str) -> bool {
     matches!(
         owner.to_ascii_lowercase().as_str(),
-        "0x0000000000000000000000000000000000000000"
-            | "0x000000000000000000000000000000000000dead"
+        "0x0000000000000000000000000000000000000000" | "0x000000000000000000000000000000000000dead"
     )
 }
 

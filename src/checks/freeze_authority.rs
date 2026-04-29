@@ -6,14 +6,18 @@ pub fn check_freeze_authority_disabled(facts: &TokenFacts) -> CheckResult {
         Some(auth) => auth,
         None => return unknown_result(),
     };
-    
+
     let is_disabled = authorities.freeze_authority.is_none();
-    
+
     CheckResult {
         id: "freeze_authority_disabled".to_string(),
         label: "Freeze authority disabled".to_string(),
         category: "supply_control".to_string(),
-        status: if is_disabled { CheckStatus::Pass } else { CheckStatus::Fail },
+        status: if is_disabled {
+            CheckStatus::Pass
+        } else {
+            CheckStatus::Fail
+        },
         severity: Severity::High,
         value: json!(is_disabled),
         evidence: json!({
@@ -45,7 +49,7 @@ fn unknown_result() -> CheckResult {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_freeze_authority_disabled_pass() {
         let facts = TokenFacts {
@@ -60,14 +64,14 @@ mod tests {
             holders: None,
             creation: None,
         };
-        
+
         let result = check_freeze_authority_disabled(&facts);
-        
+
         assert!(matches!(result.status, CheckStatus::Pass));
         assert_eq!(result.score_component, Some(100));
         assert!(matches!(result.severity, Severity::High));
     }
-    
+
     #[test]
     fn test_freeze_authority_exists_fail() {
         let facts = TokenFacts {
@@ -82,9 +86,9 @@ mod tests {
             holders: None,
             creation: None,
         };
-        
+
         let result = check_freeze_authority_disabled(&facts);
-        
+
         assert!(matches!(result.status, CheckStatus::Fail));
         assert_eq!(result.score_component, Some(0));
     }

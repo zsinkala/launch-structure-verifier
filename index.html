@@ -151,9 +151,12 @@
             };
 
             const buildPaidReportExport = () => {
+                const buyerVerdict = getBuyerVerdict(result);
+
                 return {
                     report_access_id: paidReportAccessId,
                     generated_at: new Date().toISOString(),
+                    buyer_verdict: buyerVerdict,
                     payment: {
                         tx_hash: extractTxHash(paymentTxHash),
                         amount_usdc: paymentStatus?.amount_usdc || PAID_REPORT_PRICE,
@@ -256,6 +259,54 @@
                 return result.score.components.find(component => component.id === checkId);
             };
 
+            const getBuyerVerdict = (result) => {
+                const failed = result.checks.filter(check => check.status === 'Fail');
+                const unknown = result.checks.filter(check => check.status === 'Unknown');
+                const criticalFailures = failed.filter(check => check.severity === 'Critical');
+                const mediumOrHighFailures = failed.filter(check => ['High', 'Medium'].includes(check.severity));
+                const grade = result.score.grade;
+
+                if (criticalFailures.length > 0 || grade === 'Compromised') {
+                    return {
+                        label: 'High structural risk',
+                        tone: 'red',
+                        reasoning: 'A critical launch control check failed, so the structure has a serious trust or supply-control concern regardless of the numeric score.'
+                    };
+                }
+
+                if (mediumOrHighFailures.length > 0 || grade === 'Fragile') {
+                    return {
+                        label: 'High structural risk',
+                        tone: 'orange',
+                        reasoning: 'One or more meaningful structural checks failed, which points to elevated launch risk that deserves careful review before relying on the token.'
+                    };
+                }
+
+                if (unknown.length > 0 || grade === 'Mixed') {
+                    return {
+                        label: 'Mixed structural risk',
+                        tone: 'yellow',
+                        reasoning: 'No critical failure was detected, but some evidence is missing or the score is mixed, so the structure is not fully confirmed.'
+                    };
+                }
+
+                return {
+                    label: 'Low structural risk',
+                    tone: 'green',
+                    reasoning: 'The available structural checks passed and no major launch-control warning was detected in this analysis.'
+                };
+            };
+
+            const getVerdictColor = (tone) => {
+                switch(tone) {
+                    case 'green': return 'bg-green-50 border-green-200 text-green-800';
+                    case 'yellow': return 'bg-yellow-50 border-yellow-200 text-yellow-800';
+                    case 'orange': return 'bg-orange-50 border-orange-200 text-orange-800';
+                    case 'red': return 'bg-red-50 border-red-200 text-red-800';
+                    default: return 'bg-gray-50 border-gray-200 text-gray-800';
+                }
+            };
+
             const exampleAddresses = chain === "solana" 
                 ? "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263 (BONK) or EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v (USDC)"
                 : "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913 (USDC on Base)";
@@ -263,6 +314,7 @@
             const failedChecks = result ? result.checks.filter(check => check.status === 'Fail') : [];
             const unknownChecks = result ? result.checks.filter(check => check.status === 'Unknown') : [];
             const passedChecks = result ? result.checks.filter(check => check.status === 'Pass') : [];
+            const buyerVerdict = result ? getBuyerVerdict(result) : null;
 
             return (
                 <div className="max-w-4xl mx-auto">
@@ -413,6 +465,10 @@
                                     <div>Pay To: {PAYMENT_WALLET}</div>
                                 </div>
 
+                                <div className="bg-blue-50 border border-blue-200 text-blue-800 p-3 rounded text-sm mb-4">
+                                    Valid payments must be sent on Base, use official Base USDC, go to the wallet above, and be at least {PAID_REPORT_PRICE} USDC. Each transaction hash unlocks one report.
+                                </div>
+
                                 {!paidReportAccessId ? (
                                     <form onSubmit={handleVerifyPayment} className="space-y-3">
                                         <div>
@@ -508,6 +564,14 @@
                                             </div>
 
                                             <div className="space-y-5 text-sm">
+                                                <section>
+                                                    <h5 className="font-medium mb-2">Buyer Verdict</h5>
+                                                    <div className={`border p-3 rounded ${getVerdictColor(buyerVerdict.tone)}`}>
+                                                        <div className="text-base font-semibold">{buyerVerdict.label}</div>
+                                                        <p className="mt-1">{buyerVerdict.reasoning}</p>
+                                                    </div>
+                                                </section>
+
                                                 <section>
                                                     <h5 className="font-medium mb-2">Executive Summary</h5>
                                                     <p className="text-gray-700">{result.explain.summary}</p>

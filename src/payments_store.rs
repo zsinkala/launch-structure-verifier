@@ -44,7 +44,10 @@ impl SupabasePaymentStore {
         Ok(!rows.is_empty())
     }
 
-    pub async fn store_used_tx(&self, record: UsedPaymentTxRecord) -> Result<(), PaymentStoreError> {
+    pub async fn store_used_tx(
+        &self,
+        record: UsedPaymentTxRecord,
+    ) -> Result<(), PaymentStoreError> {
         let endpoint = format!("{}/rest/v1/used_payment_txs", self.url);
 
         let response = self

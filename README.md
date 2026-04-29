@@ -48,7 +48,8 @@ Last known good state:
 - Earlier Render startup trouble (`Port scan timeout reached`) was resolved; server now binds to `0.0.0.0:<PORT>` and `/health` returns `ok`.
 - Repo-side Render config uses `type: web`, `cargo build --release --bin launch-structure-verifier-server`, and `./target/release/launch-structure-verifier-server`.
 - Payment verification was fixed after replacing the wrong Render `SUPABASE_SERVICE_ROLE_KEY` with the correct service-role key.
-- RLS is now enabled on `public.used_payment_txs`; the Supabase advisor warning is gone.
+- RLS is enabled on `public.used_payment_txs`.
+- Supabase Security Advisor later reported `RLS Enabled No Policy` for `public.used_payment_txs`; run `supabase/used_payment_txs_security.sql` in the Supabase SQL editor to add explicit deny-all browser policies while keeping backend service-role access.
 - Live payment verification results on April 28, 2026:
   - Fake tx `0x0000000000000000000000000000000000000000000000000000000000000001` returned `404`, confirming Supabase auth passed and Alchemy returned transaction-not-found.
   - Real tx `0xedff7307b21ca982d42a46a200368a2c372c2810104568dc5da48289dd4ab325` returned `200` with `valid: true` and `amount_usdc: "5"`.
@@ -59,15 +60,26 @@ Last known good state:
 - Final local test run after Solana metadata improvement: `cargo test` passed with 44 active tests and 7 ignored live-provider tests.
 - Workspace was clean on `main` after the last deployment.
 
-Tomorrow checklist:
+Current follow-up checklist:
 
-1. Add a top-of-report `Buyer Verdict` section, such as `Low structural risk`, `Mixed structural risk`, or `High structural risk`, with short plain-language reasoning.
-2. Improve holder concentration data for Solana and Base so fewer reports show `Unknown` for holder checks.
-3. Improve token age / first-seen detection so fewer reports show `Unknown` for token age.
-4. Add a small payment UX note explaining what counts as a valid payment: Base network, official Base USDC, exact payment wallet, minimum `5 USDC`.
-5. Add a printable or HTML/PDF-style report export in addition to the current JSON export.
-6. Add an admin-friendly payment verification status/logging view or endpoint without exposing secrets.
-7. Before new paid tests, remember each valid Base USDC payment tx can only unlock one report because it is persisted in Supabase.
+Done locally after continuation:
+
+- Added a top-of-report `Buyer Verdict` section to the paid report with `Low structural risk`, `Mixed structural risk`, or `High structural risk` plain-language reasoning.
+- Added `buyer_verdict` to the downloaded paid report JSON.
+- Added a payment UX note explaining valid payments: Base network, official Base USDC, exact payment wallet, minimum `5 USDC`, and one report per transaction hash.
+- Added `supabase/used_payment_txs_security.sql` to resolve the Supabase `RLS Enabled No Policy` advisor item with explicit deny-all browser policies.
+- Added Solana holder concentration fetching through Helius/Solana RPC `getTokenLargestAccounts` plus `getTokenSupply`.
+- Added Solana token age detection through Helius/Solana RPC `getSignaturesForAddress` using the oldest mint-account signature block time.
+- Added Base token age detection through Alchemy/EVM RPC by binary-searching for the first block where contract bytecode exists.
+- Added optional Base holder concentration through BaseScan `tokenholderlist` when `BASESCAN_API_KEY` is configured.
+- `cargo test` passed with 51 active tests and 11 ignored live-provider tests on April 29, 2026.
+
+Remaining checklist:
+
+1. Add `BASESCAN_API_KEY` in Render if Base holder concentration should be enabled in production.
+2. Add a printable or HTML/PDF-style report export in addition to the current JSON export.
+3. Add an admin-friendly payment verification status/logging view or endpoint without exposing secrets.
+4. Before new paid tests, remember each valid Base USDC payment tx can only unlock one report because it is persisted in Supabase.
 
 Important warnings:
 
@@ -137,6 +149,7 @@ export PAYMENT_WALLET_ADDRESS="0x6aeaEC86d147e5A13cB7bD50CF2200C85656D6d9"
 export PAID_REPORT_PRICE_USDC=5
 export SUPABASE_URL="https://your-project-ref.supabase.co"
 export SUPABASE_SERVICE_ROLE_KEY="your-backend-secret-key"
+export BASESCAN_API_KEY="your-basescan-key"
 ```
 
 If `PORT` is not set, the server uses `3000`.
@@ -146,6 +159,8 @@ If `FRONTEND_ORIGIN` is set, browser CORS requests are restricted to that origin
 `PAYMENT_WALLET_ADDRESS` is the dedicated wallet that receives paid report payments. `PAID_REPORT_PRICE_USDC` defaults to `5` and is measured in Base USDC.
 
 `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` enable persistent paid-report transaction storage. Keep the service role key only on the backend.
+
+`BASESCAN_API_KEY` enables Base holder concentration through BaseScan's `tokenholderlist` endpoint. Without it, Base holder concentration remains `Unknown` while the rest of the Base analysis still runs through Alchemy.
 
 ## Run Locally
 
@@ -275,6 +290,8 @@ create table if not exists used_payment_txs (
   created_at timestamptz not null default now()
 );
 ```
+
+Security policies for this backend-only table are in `supabase/used_payment_txs_security.sql`. They explicitly deny `anon` and `authenticated` browser access so the table stays service-role-only.
 
 ## Response Shape
 

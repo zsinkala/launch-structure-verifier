@@ -6,14 +6,18 @@ pub fn check_mint_authority_disabled(facts: &TokenFacts) -> CheckResult {
         Some(auth) => auth,
         None => return unknown_result(),
     };
-    
+
     let is_disabled = authorities.mint_authority.is_none();
-    
+
     CheckResult {
         id: "mint_authority_disabled".to_string(),
         label: "Mint authority disabled".to_string(),
         category: "supply_control".to_string(),
-        status: if is_disabled { CheckStatus::Pass } else { CheckStatus::Fail },
+        status: if is_disabled {
+            CheckStatus::Pass
+        } else {
+            CheckStatus::Fail
+        },
         severity: Severity::Critical,
         value: json!(is_disabled),
         evidence: json!({
@@ -45,7 +49,7 @@ fn unknown_result() -> CheckResult {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_mint_authority_disabled_pass() {
         let facts = TokenFacts {
@@ -60,14 +64,14 @@ mod tests {
             holders: None,
             creation: None,
         };
-        
+
         let result = check_mint_authority_disabled(&facts);
-        
+
         assert!(matches!(result.status, CheckStatus::Pass));
         assert_eq!(result.score_component, Some(100));
         assert!(matches!(result.severity, Severity::Critical));
     }
-    
+
     #[test]
     fn test_mint_authority_exists_fail() {
         let facts = TokenFacts {
@@ -82,14 +86,14 @@ mod tests {
             holders: None,
             creation: None,
         };
-        
+
         let result = check_mint_authority_disabled(&facts);
-        
+
         assert!(matches!(result.status, CheckStatus::Fail));
         assert_eq!(result.score_component, Some(0));
         assert!(matches!(result.severity, Severity::Critical));
     }
-    
+
     #[test]
     fn test_mint_authority_unknown() {
         let facts = TokenFacts {
@@ -99,9 +103,9 @@ mod tests {
             holders: None,
             creation: None,
         };
-        
+
         let result = check_mint_authority_disabled(&facts);
-        
+
         assert!(matches!(result.status, CheckStatus::Unknown));
         assert_eq!(result.score_component, None);
     }

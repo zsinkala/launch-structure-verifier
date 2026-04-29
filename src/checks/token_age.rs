@@ -6,14 +6,14 @@ pub fn check_token_age(facts: &TokenFacts) -> CheckResult {
         Some(c) => c,
         None => return unknown_result(),
     };
-    
+
     let (score, value) = match creation.age_band {
         AgeBand::GreaterThan7d => (100, "stabilizing"),
         AgeBand::Day1To7 => (70, "early"),
         AgeBand::LessThan24h => (40, "extremely_fragile"),
         AgeBand::Unknown => return unknown_result(),
     };
-    
+
     CheckResult {
         id: "token_age".to_string(),
         label: "Token age".to_string(),
@@ -55,7 +55,7 @@ fn unknown_result() -> CheckResult {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_token_age_mature() {
         let facts = TokenFacts {
@@ -69,13 +69,13 @@ mod tests {
             authorities: None,
             holders: None,
         };
-        
+
         let result = check_token_age(&facts);
-        
+
         assert!(matches!(result.status, CheckStatus::Pass));
         assert_eq!(result.score_component, Some(100));
     }
-    
+
     #[test]
     fn test_token_age_early() {
         let facts = TokenFacts {
@@ -89,13 +89,13 @@ mod tests {
             authorities: None,
             holders: None,
         };
-        
+
         let result = check_token_age(&facts);
-        
+
         assert!(matches!(result.status, CheckStatus::Pass));
         assert_eq!(result.score_component, Some(70));
     }
-    
+
     #[test]
     fn test_token_age_very_new() {
         let facts = TokenFacts {
@@ -109,9 +109,9 @@ mod tests {
             authorities: None,
             holders: None,
         };
-        
+
         let result = check_token_age(&facts);
-        
+
         assert!(matches!(result.status, CheckStatus::Pass));
         assert_eq!(result.score_component, Some(40));
     }

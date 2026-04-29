@@ -5,11 +5,11 @@ use std::env;
 
 #[tokio::main]
 async fn main() {
-    let helius_api_key = env::var("HELIUS_API_KEY")
-        .expect("HELIUS_API_KEY environment variable must be set");
-    
-    let alchemy_api_key = env::var("ALCHEMY_API_KEY")
-        .expect("ALCHEMY_API_KEY environment variable must be set");
+    let helius_api_key =
+        env::var("HELIUS_API_KEY").expect("HELIUS_API_KEY environment variable must be set");
+
+    let alchemy_api_key =
+        env::var("ALCHEMY_API_KEY").expect("ALCHEMY_API_KEY environment variable must be set");
 
     // Read PORT from environment (Render provides this)
     let port = env::var("PORT")
@@ -27,10 +27,12 @@ async fn main() {
         env::var("SUPABASE_URL").ok(),
         env::var("SUPABASE_SERVICE_ROLE_KEY").ok(),
     ) {
-        (Some(url), Some(service_role_key)) => Some(SupabasePaymentStore::new(url, service_role_key)),
+        (Some(url), Some(service_role_key)) => {
+            Some(SupabasePaymentStore::new(url, service_role_key))
+        }
         _ => None,
     };
-    
+
     run_server(
         port,
         helius_api_key,

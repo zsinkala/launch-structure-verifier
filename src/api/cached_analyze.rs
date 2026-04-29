@@ -1,7 +1,7 @@
-use crate::api::types::{AnalyzeRequest, AnalyzeResponse};
-use crate::providers::TokenProvider;
-use crate::cache::{SimpleCache, simple_cache::ttl_for_response};
 use super::analyze::analyze;
+use crate::api::types::{AnalyzeRequest, AnalyzeResponse};
+use crate::cache::{simple_cache::ttl_for_response, SimpleCache};
+use crate::providers::TokenProvider;
 
 pub async fn analyze_with_cache<P: TokenProvider>(
     request: AnalyzeRequest,
@@ -39,9 +39,9 @@ pub async fn analyze_with_cache<P: TokenProvider>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::api::types::AnalyzeOptions;
     use crate::providers::mocks::MockProvider;
     use crate::types::*;
-    use crate::api::types::AnalyzeOptions;
 
     #[tokio::test]
     async fn test_cache_hit() {

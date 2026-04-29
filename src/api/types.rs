@@ -1,6 +1,6 @@
-use serde::{Deserialize, Serialize};
-use crate::types::*;
 use crate::scoring::ScoreResult;
+use crate::types::*;
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct AnalyzeRequest {
@@ -20,8 +20,12 @@ pub struct AnalyzeOptions {
     pub force_refresh: bool,
 }
 
-fn default_true() -> bool { true }
-fn default_max_holders() -> usize { 10 }
+fn default_true() -> bool {
+    true
+}
+fn default_max_holders() -> usize {
+    10
+}
 
 impl Default for AnalyzeOptions {
     fn default() -> Self {

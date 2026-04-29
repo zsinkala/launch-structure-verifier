@@ -39,19 +39,18 @@ pub fn aggregate_score(checks: &[CheckResult]) -> ScoreResult {
                     weighted_points: Some(weighted_points),
                 }
             }
-            None => {
-                ScoreComponent {
-                    id: check.id.clone(),
-                    weight: check.weight,
-                    component_score: None,
-                    weighted_points: None,
-                }
-            }
+            None => ScoreComponent {
+                id: check.id.clone(),
+                weight: check.weight,
+                component_score: None,
+                weighted_points: None,
+            },
         };
 
         components.push(component);
 
-        if matches!(check.severity, Severity::Critical) && matches!(check.status, CheckStatus::Fail) {
+        if matches!(check.severity, Severity::Critical) && matches!(check.status, CheckStatus::Fail)
+        {
             has_critical_failure = true;
         }
     }
@@ -77,7 +76,8 @@ pub fn aggregate_score(checks: &[CheckResult]) -> ScoreResult {
         components,
         weights_total,
         notes: vec![
-            "Composite score summarizes structure; individual checks are the source of truth.".to_string(),
+            "Composite score summarizes structure; individual checks are the source of truth."
+                .to_string(),
         ],
     }
 }
@@ -122,7 +122,13 @@ mod tests {
     #[test]
     fn test_all_pass_strong_grade() {
         let checks = vec![
-            make_check("check1", CheckStatus::Pass, Severity::Critical, 25, Some(100)),
+            make_check(
+                "check1",
+                CheckStatus::Pass,
+                Severity::Critical,
+                25,
+                Some(100),
+            ),
             make_check("check2", CheckStatus::Pass, Severity::High, 20, Some(100)),
             make_check("check3", CheckStatus::Pass, Severity::Medium, 20, Some(100)),
         ];
@@ -137,7 +143,13 @@ mod tests {
     #[test]
     fn test_critical_override_forces_compromised() {
         let checks = vec![
-            make_check("mint_authority", CheckStatus::Fail, Severity::Critical, 25, Some(0)),
+            make_check(
+                "mint_authority",
+                CheckStatus::Fail,
+                Severity::Critical,
+                25,
+                Some(0),
+            ),
             make_check("check2", CheckStatus::Pass, Severity::High, 20, Some(100)),
             make_check("check3", CheckStatus::Pass, Severity::Medium, 20, Some(100)),
             make_check("check4", CheckStatus::Pass, Severity::Low, 10, Some(100)),
@@ -145,7 +157,8 @@ mod tests {
 
         let result = aggregate_score(&checks);
 
-        let expected_score: u8 = ((0.0f64 * 25.0 + 100.0 * 20.0 + 100.0 * 20.0 + 100.0 * 10.0) / 75.0).round() as u8;
+        let expected_score: u8 =
+            ((0.0f64 * 25.0 + 100.0 * 20.0 + 100.0 * 20.0 + 100.0 * 10.0) / 75.0).round() as u8;
         assert_eq!(result.fairness_score, Some(expected_score));
         assert!(matches!(result.grade, Grade::Compromised));
     }
@@ -153,7 +166,13 @@ mod tests {
     #[test]
     fn test_unknown_excludes_weight() {
         let checks = vec![
-            make_check("check1", CheckStatus::Pass, Severity::Critical, 25, Some(100)),
+            make_check(
+                "check1",
+                CheckStatus::Pass,
+                Severity::Critical,
+                25,
+                Some(100),
+            ),
             make_check("check2", CheckStatus::Unknown, Severity::High, 20, None),
             make_check("check3", CheckStatus::Pass, Severity::Medium, 20, Some(80)),
         ];
@@ -164,9 +183,7 @@ mod tests {
         assert_eq!(result.fairness_score, Some(91));
         assert!(matches!(result.grade, Grade::Strong));
 
-        let unknown_component = result.components.iter()
-            .find(|c| c.id == "check2")
-            .unwrap();
+        let unknown_component = result.components.iter().find(|c| c.id == "check2").unwrap();
         assert_eq!(unknown_component.weighted_points, None);
     }
 
@@ -186,27 +203,43 @@ mod tests {
 
     #[test]
     fn test_grade_thresholds() {
-        let checks_strong = vec![
-            make_check("check1", CheckStatus::Pass, Severity::Medium, 50, Some(80)),
-        ];
+        let checks_strong = vec![make_check(
+            "check1",
+            CheckStatus::Pass,
+            Severity::Medium,
+            50,
+            Some(80),
+        )];
         let result = aggregate_score(&checks_strong);
         assert!(matches!(result.grade, Grade::Strong));
 
-        let checks_mixed = vec![
-            make_check("check1", CheckStatus::Pass, Severity::Medium, 50, Some(70)),
-        ];
+        let checks_mixed = vec![make_check(
+            "check1",
+            CheckStatus::Pass,
+            Severity::Medium,
+            50,
+            Some(70),
+        )];
         let result = aggregate_score(&checks_mixed);
         assert!(matches!(result.grade, Grade::Mixed));
 
-        let checks_fragile = vec![
-            make_check("check1", CheckStatus::Pass, Severity::Medium, 50, Some(50)),
-        ];
+        let checks_fragile = vec![make_check(
+            "check1",
+            CheckStatus::Pass,
+            Severity::Medium,
+            50,
+            Some(50),
+        )];
         let result = aggregate_score(&checks_fragile);
         assert!(matches!(result.grade, Grade::Fragile));
 
-        let checks_comp = vec![
-            make_check("check1", CheckStatus::Pass, Severity::Medium, 50, Some(30)),
-        ];
+        let checks_comp = vec![make_check(
+            "check1",
+            CheckStatus::Pass,
+            Severity::Medium,
+            50,
+            Some(30),
+        )];
         let result = aggregate_score(&checks_comp);
         assert!(matches!(result.grade, Grade::Compromised));
     }
@@ -214,9 +247,27 @@ mod tests {
     #[test]
     fn test_partial_data_honest_scoring() {
         let checks = vec![
-            make_check("mint_authority", CheckStatus::Pass, Severity::Critical, 25, Some(100)),
-            make_check("freeze_authority", CheckStatus::Pass, Severity::High, 20, Some(100)),
-            make_check("holder_concentration", CheckStatus::Unknown, Severity::Medium, 20, None),
+            make_check(
+                "mint_authority",
+                CheckStatus::Pass,
+                Severity::Critical,
+                25,
+                Some(100),
+            ),
+            make_check(
+                "freeze_authority",
+                CheckStatus::Pass,
+                Severity::High,
+                20,
+                Some(100),
+            ),
+            make_check(
+                "holder_concentration",
+                CheckStatus::Unknown,
+                Severity::Medium,
+                20,
+                None,
+            ),
             make_check("token_age", CheckStatus::Pass, Severity::Low, 10, Some(70)),
         ];
 
