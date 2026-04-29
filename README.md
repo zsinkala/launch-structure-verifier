@@ -17,8 +17,8 @@ Last known good state:
 - Frontend is live at `https://zsinkala.github.io/launch-structure-verifier/`.
 - Backend is live at `https://launch-structure-verifier.onrender.com`.
 - Health check is `https://launch-structure-verifier.onrender.com/health`.
-- Render/main deployed commit `cb1c0e0`: `Add paid report export actions`.
-- GitHub Pages deployed commit `77f29e8`: `Deploy paid report export actions`.
+- Render/main deployed commit `e8f0613`: `Fix printable report popup`.
+- GitHub Pages deployed commit `03d648e`: `Deploy printable report popup fix`.
 - Paid Report UI is visible after running an analysis and unlocks after a valid Base USDC payment.
 - Paid report now renders a cleaner structured report instead of raw score/evidence JSON.
 - Paid report has `Copy ID` and `Download JSON` actions after unlock.
@@ -73,13 +73,18 @@ Done locally after continuation:
 - Added Base token age detection through Alchemy/EVM RPC by binary-searching for the first block where contract bytecode exists.
 - Added optional Base holder concentration through Etherscan V2 `tokenholderlist` on Base (`chainid=8453`) when `BASESCAN_API_KEY` is configured.
 - Added a paid-report `Print / Save PDF` action that opens a clean printable HTML report.
+- Fixed the first `Print / Save PDF` attempt, which opened blank `about:blank` tabs because the popup used `noopener,noreferrer`; the live `gh-pages` branch now uses `window.open('', '_blank')`.
+- Live free BONK analysis with force refresh confirmed Solana holder concentration works: holder concentration passed with `100/100`, top1 about `7.64%`, top5 about `25.55%`, and overall score `93/100`.
+- Base token age now populates on live Base USDC analysis, but Base holder concentration remains `Unknown` on the free Etherscan API plan because `tokenholderlist` is a paid Standard/Pro endpoint.
+- A fresh paid report unlock after the print-button deploy showed the `Print / Save PDF` button, but that specific test happened before the popup fix was fully verified in-browser.
 - `cargo test` passed with 51 active tests and 11 ignored live-provider tests on April 29, 2026.
 
 Remaining checklist:
 
-1. Add `BASESCAN_API_KEY` in Render if Base holder concentration should be enabled in production.
+1. Tomorrow, verify the `Print / Save PDF` popup fix from a fresh page load: open `https://zsinkala.github.io/launch-structure-verifier/?v=popup-fix-2`, unlock a paid report only when ready to spend another `5 USDC`, then click `Print / Save PDF`.
 2. Add an admin-friendly payment verification status/logging view or endpoint without exposing secrets.
-3. Before new paid tests, remember each valid Base USDC payment tx can only unlock one report because it is persisted in Supabase.
+3. Consider upgrading Etherscan only later, when Base holder concentration is needed for demos or paying users.
+4. Before new paid tests, remember each valid Base USDC payment tx can only unlock one report because it is persisted in Supabase.
 
 Important warnings:
 
