@@ -71,7 +71,7 @@ Done locally after continuation:
 - Added Solana holder concentration fetching through Helius/Solana RPC `getTokenLargestAccounts` plus `getTokenSupply`.
 - Added Solana token age detection through Helius/Solana RPC `getSignaturesForAddress` using the oldest mint-account signature block time.
 - Added Base token age detection through Alchemy/EVM RPC by binary-searching for the first block where contract bytecode exists.
-- Added optional Base holder concentration through BaseScan `tokenholderlist` when `BASESCAN_API_KEY` is configured.
+- Added optional Base holder concentration through Etherscan V2 `tokenholderlist` on Base (`chainid=8453`) when `BASESCAN_API_KEY` is configured.
 - `cargo test` passed with 51 active tests and 11 ignored live-provider tests on April 29, 2026.
 
 Remaining checklist:
@@ -160,7 +160,7 @@ If `FRONTEND_ORIGIN` is set, browser CORS requests are restricted to that origin
 
 `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` enable persistent paid-report transaction storage. Keep the service role key only on the backend.
 
-`BASESCAN_API_KEY` enables Base holder concentration through BaseScan's `tokenholderlist` endpoint. Without it, Base holder concentration remains `Unknown` while the rest of the Base analysis still runs through Alchemy.
+`BASESCAN_API_KEY` enables Base holder concentration through Etherscan V2's `tokenholderlist` endpoint for Base (`chainid=8453`). Without it, Base holder concentration remains `Unknown` while the rest of the Base analysis still runs through Alchemy. Etherscan marks this holder-list endpoint as a paid Standard/Pro endpoint, so free API keys may still return `Unknown`.
 
 ## Run Locally
 

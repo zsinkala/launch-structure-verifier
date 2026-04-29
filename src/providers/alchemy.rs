@@ -321,8 +321,9 @@ async fn fetch_basescan_holders(
     let offset = limit.max(5).to_string();
     let client = reqwest::Client::new();
     let response = client
-        .get("https://api.basescan.org/api")
+        .get("https://api.etherscan.io/v2/api")
         .query(&[
+            ("chainid", "8453"),
             ("module", "token"),
             ("action", "tokenholderlist"),
             ("contractaddress", address),
