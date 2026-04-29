@@ -367,7 +367,7 @@
                 if (!paidReportAccessId || !result) return;
 
                 const html = buildPrintableReportHtml();
-                const printWindow = window.open('', '_blank', 'noopener,noreferrer');
+                const printWindow = window.open('', '_blank');
                 if (!printWindow) {
                     setReportActionMessage("Could not open the print report. Allow popups for this site and try again.");
                     return;
