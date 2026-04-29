@@ -72,14 +72,14 @@ Done locally after continuation:
 - Added Solana token age detection through Helius/Solana RPC `getSignaturesForAddress` using the oldest mint-account signature block time.
 - Added Base token age detection through Alchemy/EVM RPC by binary-searching for the first block where contract bytecode exists.
 - Added optional Base holder concentration through Etherscan V2 `tokenholderlist` on Base (`chainid=8453`) when `BASESCAN_API_KEY` is configured.
+- Added a paid-report `Print / Save PDF` action that opens a clean printable HTML report.
 - `cargo test` passed with 51 active tests and 11 ignored live-provider tests on April 29, 2026.
 
 Remaining checklist:
 
 1. Add `BASESCAN_API_KEY` in Render if Base holder concentration should be enabled in production.
-2. Add a printable or HTML/PDF-style report export in addition to the current JSON export.
-3. Add an admin-friendly payment verification status/logging view or endpoint without exposing secrets.
-4. Before new paid tests, remember each valid Base USDC payment tx can only unlock one report because it is persisted in Supabase.
+2. Add an admin-friendly payment verification status/logging view or endpoint without exposing secrets.
+3. Before new paid tests, remember each valid Base USDC payment tx can only unlock one report because it is persisted in Supabase.
 
 Important warnings:
 
