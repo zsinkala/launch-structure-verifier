@@ -151,9 +151,12 @@
             };
 
             const buildPaidReportExport = () => {
+                const buyerVerdict = getBuyerVerdict(result);
+
                 return {
                     report_access_id: paidReportAccessId,
                     generated_at: new Date().toISOString(),
+                    buyer_verdict: buyerVerdict,
                     payment: {
                         tx_hash: extractTxHash(paymentTxHash),
                         amount_usdc: paymentStatus?.amount_usdc || PAID_REPORT_PRICE,
@@ -196,6 +199,184 @@
                 link.remove();
                 URL.revokeObjectURL(url);
                 setReportActionMessage("Report JSON downloaded.");
+            };
+
+            const escapeHtml = (value) => {
+                return String(value ?? '')
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#039;');
+            };
+
+            const buildPrintableReportHtml = () => {
+                const report = buildPaidReportExport();
+                const tokenName = result.token?.symbol || result.token?.name || 'Token';
+                const checkRows = result.checks.map(check => {
+                    const component = checkComponent(result, check.id);
+                    const evidenceRows = Object.entries(check.evidence || {})
+                        .map(([key, value]) => `
+                            <div class="evidence-item">
+                                <dt>${escapeHtml(formatReportKey(key))}</dt>
+                                <dd>${escapeHtml(formatReportValue(key, value))}</dd>
+                            </div>
+                        `)
+                        .join('');
+
+                    return `
+                        <section class="check">
+                            <div class="check-heading">
+                                <div>
+                                    <h3>${escapeHtml(check.label)}</h3>
+                                    <p>${escapeHtml(formatReportKey(check.category))} / ${escapeHtml(check.severity)} severity / Weight ${escapeHtml(check.weight)}</p>
+                                </div>
+                                <span class="pill ${escapeHtml(check.status.toLowerCase())}">${escapeHtml(check.status)}</span>
+                            </div>
+                            <div class="metrics">
+                                <div><span>Component Score</span><strong>${check.score_component !== null ? `${escapeHtml(check.score_component)}/100` : 'Excluded'}</strong></div>
+                                <div><span>Weighted Points</span><strong>${component?.weighted_points !== null && component?.weighted_points !== undefined ? escapeHtml(component.weighted_points.toFixed(2)) : 'Excluded'}</strong></div>
+                            </div>
+                            <dl class="evidence">${evidenceRows}</dl>
+                        </section>
+                    `;
+                }).join('');
+
+                const findings = [
+                    ...failedChecks.map(check => `<li><strong>${escapeHtml(check.label)}</strong>: failed ${escapeHtml(check.severity.toLowerCase())} severity check.</li>`),
+                    ...unknownChecks.map(check => `<li><strong>${escapeHtml(check.label)}</strong>: data was unavailable, so this weight was excluded from the score.</li>`)
+                ];
+                const findingHtml = findings.length > 0
+                    ? findings.join('')
+                    : '<li>No failed or unknown structural checks were detected in this analysis.</li>';
+
+                return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Launch Structure Report - ${escapeHtml(tokenName)}</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { margin: 0; color: #111827; background: #f8fafc; font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+        main { max-width: 920px; margin: 0 auto; padding: 36px 28px; background: #fff; min-height: 100vh; }
+        header { display: flex; justify-content: space-between; gap: 24px; border-bottom: 2px solid #111827; padding-bottom: 20px; margin-bottom: 24px; }
+        h1, h2, h3 { margin: 0; line-height: 1.2; }
+        h1 { font-size: 30px; }
+        h2 { font-size: 18px; margin-bottom: 10px; }
+        h3 { font-size: 15px; }
+        .muted { color: #6b7280; }
+        .score { text-align: right; }
+        .score strong { display: block; font-size: 34px; }
+        .grade { display: inline-block; border: 1px solid #d1d5db; border-radius: 999px; padding: 4px 10px; font-weight: 700; }
+        .grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 20px 0; }
+        .card, .verdict, .check { border: 1px solid #e5e7eb; border-radius: 8px; padding: 14px; background: #fff; }
+        .card span, .metrics span, dt { display: block; color: #6b7280; font-size: 12px; }
+        .card strong, .metrics strong { display: block; margin-top: 3px; word-break: break-word; }
+        .verdict { border-color: #d1d5db; background: #f9fafb; margin-bottom: 22px; }
+        section { margin: 22px 0; }
+        ul { padding-left: 20px; }
+        .check { break-inside: avoid; margin-bottom: 12px; }
+        .check-heading { display: flex; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
+        .pill { border: 1px solid #d1d5db; border-radius: 999px; padding: 3px 9px; font-size: 12px; font-weight: 700; height: fit-content; }
+        .pill.pass { color: #047857; background: #ecfdf5; border-color: #a7f3d0; }
+        .pill.fail { color: #b91c1c; background: #fef2f2; border-color: #fecaca; }
+        .pill.unknown { color: #4b5563; background: #f9fafb; border-color: #d1d5db; }
+        .metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 10px; }
+        .metrics > div, .evidence-item { background: #f9fafb; border-radius: 6px; padding: 9px; }
+        .evidence { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 0; }
+        dd { margin: 2px 0 0; word-break: break-word; }
+        .fine-print { border-top: 1px solid #e5e7eb; padding-top: 14px; margin-top: 28px; color: #6b7280; font-size: 12px; }
+        @media print {
+            body { background: #fff; }
+            main { padding: 0; max-width: none; }
+        }
+    </style>
+</head>
+<body>
+    <main>
+        <header>
+            <div>
+                <p class="muted">Launch Structure Verifier</p>
+                <h1>${escapeHtml(tokenName)} Structural Report</h1>
+                <p class="muted">Generated ${escapeHtml(report.generated_at)}</p>
+            </div>
+            <div class="score">
+                <span class="grade">${escapeHtml(result.score.grade)}</span>
+                <strong>${escapeHtml(result.score.fairness_score || 'N/A')}/100</strong>
+                <p class="muted">${escapeHtml(result.status)}</p>
+            </div>
+        </header>
+
+        <div class="grid">
+            <div class="card"><span>Token</span><strong>${escapeHtml(tokenName)}</strong></div>
+            <div class="card"><span>Chain</span><strong>${escapeHtml(result.chain)}</strong></div>
+            <div class="card"><span>Report ID</span><strong>${escapeHtml(paidReportAccessId)}</strong></div>
+            <div class="card"><span>Payment</span><strong>${escapeHtml(report.payment.amount_usdc)} USDC</strong></div>
+        </div>
+
+        <section class="verdict">
+            <h2>Buyer Verdict: ${escapeHtml(report.buyer_verdict.label)}</h2>
+            <p>${escapeHtml(report.buyer_verdict.reasoning)}</p>
+        </section>
+
+        <section>
+            <h2>Executive Summary</h2>
+            <p>${escapeHtml(result.explain.summary)}</p>
+            <ul>
+                <li>Passed checks: ${escapeHtml(passedChecks.length)}</li>
+                <li>Failed checks: ${escapeHtml(failedChecks.length)}</li>
+                <li>Unknown checks: ${escapeHtml(unknownChecks.length)}</li>
+            </ul>
+        </section>
+
+        <section>
+            <h2>Key Findings</h2>
+            <ul>${findingHtml}</ul>
+        </section>
+
+        <section>
+            <h2>Evidence Review</h2>
+            ${checkRows}
+        </section>
+
+        <section>
+            <h2>Scoring Method</h2>
+            <p><strong>Model:</strong> ${escapeHtml(result.score.model)}</p>
+            <p><strong>Active weight total:</strong> ${escapeHtml(result.score.weights_total)}</p>
+            <ul>${result.score.notes.map(note => `<li>${escapeHtml(note)}</li>`).join('')}</ul>
+        </section>
+
+        <section>
+            <h2>Interpretation</h2>
+            <ul>${result.explain.interpretation.what_to_do.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>
+        </section>
+
+        <p class="fine-print">Structural analysis only. This report is not investment advice, price prediction, or a recommendation to buy or sell any token.</p>
+    </main>
+    <script>
+        window.addEventListener('load', () => {
+            setTimeout(() => window.print(), 250);
+        });
+    <\/script>
+</body>
+</html>`;
+            };
+
+            const printReport = () => {
+                if (!paidReportAccessId || !result) return;
+
+                const html = buildPrintableReportHtml();
+                const printWindow = window.open('', '_blank', 'noopener,noreferrer');
+                if (!printWindow) {
+                    setReportActionMessage("Could not open the print report. Allow popups for this site and try again.");
+                    return;
+                }
+
+                printWindow.document.open();
+                printWindow.document.write(html);
+                printWindow.document.close();
+                setReportActionMessage("Printable report opened.");
             };
 
             const getGradeColor = (grade) => {
@@ -256,6 +437,54 @@
                 return result.score.components.find(component => component.id === checkId);
             };
 
+            const getBuyerVerdict = (result) => {
+                const failed = result.checks.filter(check => check.status === 'Fail');
+                const unknown = result.checks.filter(check => check.status === 'Unknown');
+                const criticalFailures = failed.filter(check => check.severity === 'Critical');
+                const mediumOrHighFailures = failed.filter(check => ['High', 'Medium'].includes(check.severity));
+                const grade = result.score.grade;
+
+                if (criticalFailures.length > 0 || grade === 'Compromised') {
+                    return {
+                        label: 'High structural risk',
+                        tone: 'red',
+                        reasoning: 'A critical launch control check failed, so the structure has a serious trust or supply-control concern regardless of the numeric score.'
+                    };
+                }
+
+                if (mediumOrHighFailures.length > 0 || grade === 'Fragile') {
+                    return {
+                        label: 'High structural risk',
+                        tone: 'orange',
+                        reasoning: 'One or more meaningful structural checks failed, which points to elevated launch risk that deserves careful review before relying on the token.'
+                    };
+                }
+
+                if (unknown.length > 0 || grade === 'Mixed') {
+                    return {
+                        label: 'Mixed structural risk',
+                        tone: 'yellow',
+                        reasoning: 'No critical failure was detected, but some evidence is missing or the score is mixed, so the structure is not fully confirmed.'
+                    };
+                }
+
+                return {
+                    label: 'Low structural risk',
+                    tone: 'green',
+                    reasoning: 'The available structural checks passed and no major launch-control warning was detected in this analysis.'
+                };
+            };
+
+            const getVerdictColor = (tone) => {
+                switch(tone) {
+                    case 'green': return 'bg-green-50 border-green-200 text-green-800';
+                    case 'yellow': return 'bg-yellow-50 border-yellow-200 text-yellow-800';
+                    case 'orange': return 'bg-orange-50 border-orange-200 text-orange-800';
+                    case 'red': return 'bg-red-50 border-red-200 text-red-800';
+                    default: return 'bg-gray-50 border-gray-200 text-gray-800';
+                }
+            };
+
             const exampleAddresses = chain === "solana" 
                 ? "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263 (BONK) or EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v (USDC)"
                 : "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913 (USDC on Base)";
@@ -263,6 +492,7 @@
             const failedChecks = result ? result.checks.filter(check => check.status === 'Fail') : [];
             const unknownChecks = result ? result.checks.filter(check => check.status === 'Unknown') : [];
             const passedChecks = result ? result.checks.filter(check => check.status === 'Pass') : [];
+            const buyerVerdict = result ? getBuyerVerdict(result) : null;
 
             return (
                 <div className="max-w-4xl mx-auto">
@@ -413,6 +643,10 @@
                                     <div>Pay To: {PAYMENT_WALLET}</div>
                                 </div>
 
+                                <div className="bg-blue-50 border border-blue-200 text-blue-800 p-3 rounded text-sm mb-4">
+                                    Valid payments must be sent on Base, use official Base USDC, go to the wallet above, and be at least {PAID_REPORT_PRICE} USDC. Each transaction hash unlocks one report.
+                                </div>
+
                                 {!paidReportAccessId ? (
                                     <form onSubmit={handleVerifyPayment} className="space-y-3">
                                         <div>
@@ -467,6 +701,13 @@
                                             >
                                                 Download JSON
                                             </button>
+                                            <button
+                                                type="button"
+                                                onClick={printReport}
+                                                className="px-3 py-2 border rounded text-sm hover:bg-gray-50"
+                                            >
+                                                Print / Save PDF
+                                            </button>
                                         </div>
 
                                         {reportActionMessage && (
@@ -508,6 +749,14 @@
                                             </div>
 
                                             <div className="space-y-5 text-sm">
+                                                <section>
+                                                    <h5 className="font-medium mb-2">Buyer Verdict</h5>
+                                                    <div className={`border p-3 rounded ${getVerdictColor(buyerVerdict.tone)}`}>
+                                                        <div className="text-base font-semibold">{buyerVerdict.label}</div>
+                                                        <p className="mt-1">{buyerVerdict.reasoning}</p>
+                                                    </div>
+                                                </section>
+
                                                 <section>
                                                     <h5 className="font-medium mb-2">Executive Summary</h5>
                                                     <p className="text-gray-700">{result.explain.summary}</p>
