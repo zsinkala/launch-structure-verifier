@@ -74,17 +74,18 @@ Done locally after continuation:
 - Added optional Base holder concentration through Etherscan V2 `tokenholderlist` on Base (`chainid=8453`) when `BASESCAN_API_KEY` is configured.
 - Added a paid-report `Print / Save PDF` action that opens a clean printable HTML report.
 - Fixed the first `Print / Save PDF` attempt, which opened blank `about:blank` tabs because the popup used `noopener,noreferrer`; the live `gh-pages` branch now uses `window.open('', '_blank')`.
+- Added an admin-only payment verification status endpoint, protected by `ADMIN_API_KEY`, for recent payment verification attempts.
 - Live free BONK analysis with force refresh confirmed Solana holder concentration works: holder concentration passed with `100/100`, top1 about `7.64%`, top5 about `25.55%`, and overall score `93/100`.
 - Base token age now populates on live Base USDC analysis, but Base holder concentration remains `Unknown` on the free Etherscan API plan because `tokenholderlist` is a paid Standard/Pro endpoint.
 - A fresh paid report unlock after the print-button deploy showed the `Print / Save PDF` button, but that specific test happened before the popup fix was fully verified in-browser.
-- `cargo test` passed with 51 active tests and 11 ignored live-provider tests on April 29, 2026.
+- On April 30, 2026, a fresh live paid BONK report verified the `Print / Save PDF` popup fix from `https://zsinkala.github.io/launch-structure-verifier/?v=popup-fix-2`; Chrome opened the printable report in a new tab and generated the PDF view successfully.
+- `cargo test` passed with 54 active tests and 11 ignored live-provider tests on April 30, 2026.
 
 Remaining checklist:
 
-1. Tomorrow, verify the `Print / Save PDF` popup fix from a fresh page load: open `https://zsinkala.github.io/launch-structure-verifier/?v=popup-fix-2`, unlock a paid report only when ready to spend another `5 USDC`, then click `Print / Save PDF`.
-2. Add an admin-friendly payment verification status/logging view or endpoint without exposing secrets.
-3. Consider upgrading Etherscan only later, when Base holder concentration is needed for demos or paying users.
-4. Before new paid tests, remember each valid Base USDC payment tx can only unlock one report because it is persisted in Supabase.
+1. Set `ADMIN_API_KEY` in Render before using `GET /api/v1/admin/payments`.
+2. Consider upgrading Etherscan only later, when Base holder concentration is needed for demos or paying users.
+3. Before new paid tests, remember each valid Base USDC payment tx can only unlock one report because it is persisted in Supabase.
 
 Important warnings:
 
@@ -152,6 +153,7 @@ export PORT=3000
 export FRONTEND_ORIGIN="https://your-frontend-domain.example"
 export PAYMENT_WALLET_ADDRESS="0x6aeaEC86d147e5A13cB7bD50CF2200C85656D6d9"
 export PAID_REPORT_PRICE_USDC=5
+export ADMIN_API_KEY="your-admin-only-random-key"
 export SUPABASE_URL="https://your-project-ref.supabase.co"
 export SUPABASE_SERVICE_ROLE_KEY="your-backend-secret-key"
 export BASESCAN_API_KEY="your-basescan-key"
@@ -164,6 +166,8 @@ If `FRONTEND_ORIGIN` is set, browser CORS requests are restricted to that origin
 `PAYMENT_WALLET_ADDRESS` is the dedicated wallet that receives paid report payments. `PAID_REPORT_PRICE_USDC` defaults to `5` and is measured in Base USDC.
 
 `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` enable persistent paid-report transaction storage. Keep the service role key only on the backend.
+
+`ADMIN_API_KEY` enables admin-only operational endpoints. Keep it out of frontend files and send it only as `x-admin-api-key` or an `Authorization: Bearer ...` header.
 
 `BASESCAN_API_KEY` enables Base holder concentration through Etherscan V2's `tokenholderlist` endpoint for Base (`chainid=8453`). Without it, Base holder concentration remains `Unknown` while the rest of the Base analysis still runs through Alchemy. Etherscan marks this holder-list endpoint as a paid Standard/Pro endpoint, so free API keys may still return `Unknown`.
 
@@ -195,6 +199,12 @@ Paid report payment verification:
 
 ```text
 POST /api/v1/payments/verify
+```
+
+Admin payment status:
+
+```text
+GET /api/v1/admin/payments
 ```
 
 ## Example Request
@@ -283,6 +293,15 @@ Successful response:
 ```
 
 Used transaction hashes and report access records are stored in Supabase when `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are configured. If those variables are missing, the server falls back to in-memory storage for local development.
+
+Admin payment status request:
+
+```bash
+curl https://launch-structure-verifier.onrender.com/api/v1/admin/payments \
+  -H "x-admin-api-key: $ADMIN_API_KEY"
+```
+
+The admin response is an in-memory rolling log of the latest 100 payment verification attempts since the server last started. It reports operational details such as tx hash, token address, status, HTTP status, amount, report ID, and message. It does not expose API keys, Supabase credentials, or wallet secrets.
 
 Supabase table:
 
@@ -382,6 +401,7 @@ For Render or similar platforms, make sure these environment variables are set:
 - `FRONTEND_ORIGIN`
 - `PAYMENT_WALLET_ADDRESS`
 - `PAID_REPORT_PRICE_USDC`
+- `ADMIN_API_KEY`
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
 

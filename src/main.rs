@@ -19,6 +19,7 @@ async fn main() {
 
     let frontend_origin = env::var("FRONTEND_ORIGIN").ok();
     let payment_wallet_address = env::var("PAYMENT_WALLET_ADDRESS").ok();
+    let admin_api_key = env::var("ADMIN_API_KEY").ok();
     let paid_report_price_usdc =
         env::var("PAID_REPORT_PRICE_USDC").unwrap_or_else(|_| "5".to_string());
     let paid_report_price_microusd = parse_usdc_amount_to_microusd(&paid_report_price_usdc)
@@ -41,6 +42,7 @@ async fn main() {
         payment_wallet_address,
         paid_report_price_microusd,
         payment_store,
+        admin_api_key,
     )
     .await;
 }
