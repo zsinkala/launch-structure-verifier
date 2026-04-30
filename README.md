@@ -75,6 +75,8 @@ Done locally after continuation:
 - Added a paid-report `Print / Save PDF` action that opens a clean printable HTML report.
 - Fixed the first `Print / Save PDF` attempt, which opened blank `about:blank` tabs because the popup used `noopener,noreferrer`; the live `gh-pages` branch now uses `window.open('', '_blank')`.
 - Added an admin-only payment verification status endpoint, protected by `ADMIN_API_KEY`, for recent payment verification attempts.
+- Render has `ADMIN_API_KEY` set, and the live admin endpoint `GET /api/v1/admin/payments` returned `200` on April 30, 2026.
+- Live admin payment logging was verified with a fake Base transaction hash; the endpoint recorded `transaction_not_found`, `http_status: 404`, `valid: false`, and retained one attempt.
 - Live free BONK analysis with force refresh confirmed Solana holder concentration works: holder concentration passed with `100/100`, top1 about `7.64%`, top5 about `25.55%`, and overall score `93/100`.
 - Base token age now populates on live Base USDC analysis, but Base holder concentration remains `Unknown` on the free Etherscan API plan because `tokenholderlist` is a paid Standard/Pro endpoint.
 - A fresh paid report unlock after the print-button deploy showed the `Print / Save PDF` button, but that specific test happened before the popup fix was fully verified in-browser.
@@ -83,9 +85,8 @@ Done locally after continuation:
 
 Remaining checklist:
 
-1. Set `ADMIN_API_KEY` in Render before using `GET /api/v1/admin/payments`.
-2. Consider upgrading Etherscan only later, when Base holder concentration is needed for demos or paying users.
-3. Before new paid tests, remember each valid Base USDC payment tx can only unlock one report because it is persisted in Supabase.
+1. Consider upgrading Etherscan only later, when Base holder concentration is needed for demos or paying users.
+2. Before new paid tests, remember each valid Base USDC payment tx can only unlock one report because it is persisted in Supabase.
 
 Important warnings:
 
